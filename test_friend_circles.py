@@ -11,144 +11,172 @@ from collections import defaultdict
 from collections import Counter
 from utils import normalized_hamming_distance
 
-# l lower
-# u upper
-# l left
-# r right
-# d down
-# v vertical
-# h horizontal
+overlay_tag_pairs = {
+    '0122': '0021',
+    '0021': '0122',
+    '1022': '0012',
+    '0012': '1022',
+    '1122': '0011',
+    '0011': '1122',
+    '1021': '0112',
+    '0112': '1021',
+    '0222': '0020',
+    '0020': '0222',
+    '2022': '0002',
+    '0002': '2022',
+    '1222': '0010',
+    '0010': '1222',
+    '1020': '0212',
+    '0212': '1020',
+    '2122': '0001',
+    '0001': '2122',
+    '2021': '0102',
+    '0102': '2021',
+    '2222': '0000',
+    '0000': '2222',
+    '2020': '0202',
+    '0202': '2020',
+}
+
 
 overlay_tag_maps = {
-    'vr32': np.array([[[0, 1], [0, 0]],
+    '0122': np.array([[[0, 1], [0, 0]],
                       [[0, 2], [0, 1]],
                       [[1, 1], [1, 0]],
                       [[1, 2], [1, 1]],
                       [[2, 1], [2, 0]],
                       [[2, 2], [2, 1]]]),
-    'vl32': np.array([[[0, 0], [0, 1]],
+    '0021': np.array([[[0, 0], [0, 1]],
                       [[0, 1], [0, 2]],
                       [[1, 0], [1, 1]],
                       [[1, 1], [1, 2]],
                       [[2, 0], [2, 1]],
                       [[2, 1], [2, 2]]]),
-    'hd23': np.array([[[1, 0], [0, 0]],
+    '1022': np.array([[[1, 0], [0, 0]],
                       [[1, 1], [0, 1]],
                       [[1, 2], [0, 2]],
                       [[2, 0], [1, 0]],
                       [[2, 1], [1, 1]],
                       [[2, 2], [1, 2]]]),
-    'hu23': np.array([[[0, 0], [1, 0]],
+    '0012': np.array([[[0, 0], [1, 0]],
                       [[0, 1], [1, 1]],
                       [[0, 2], [1, 2]],
                       [[1, 0], [2, 0]],
                       [[1, 1], [2, 1]],
                       [[1, 2], [2, 2]]]),
-    'lr22': np.array([[[1, 1], [0, 0]],
+    '1122': np.array([[[1, 1], [0, 0]],
                       [[1, 2], [0, 1]],
                       [[2, 1], [1, 0]],
                       [[2, 2], [1, 1]]]),
-    'ul22': np.array([[[0, 0], [1, 1]],
+    '0011': np.array([[[0, 0], [1, 1]],
                       [[0, 1], [1, 2]],
                       [[1, 0], [2, 1]],
                       [[1, 1], [2, 2]]]),
-    'll22': np.array([[[1, 0], [0, 1]],
+    '1021': np.array([[[1, 0], [0, 1]],
                       [[1, 1], [0, 2]],
                       [[2, 0], [1, 1]],
                       [[2, 1], [1, 2]]]),
-    'ur22': np.array([[[0, 1], [1, 0]],
+    '0112': np.array([[[0, 1], [1, 0]],
                       [[0, 2], [1, 1]],
                       [[1, 1], [2, 0]],
                       [[1, 2], [2, 1]]]),
-    'vr31': np.array([[[0, 2], [0, 0]],
+    '0222': np.array([[[0, 2], [0, 0]],
                       [[1, 2], [1, 0]],
                       [[2, 2], [2, 0]]]),
-    'vl31': np.array([[[0, 0], [0, 2]],
+    '0020': np.array([[[0, 0], [0, 2]],
                       [[1, 0], [1, 2]],
                       [[2, 0], [2, 2]]]),
-    'hd13': np.array([[[2, 0], [0, 0]],
+    '2022': np.array([[[2, 0], [0, 0]],
                       [[2, 1], [0, 1]],
                       [[2, 2], [0, 2]]]),
-    'hu13': np.array([[[0, 0], [2, 0]],
+    '0002': np.array([[[0, 0], [2, 0]],
                       [[0, 1], [2, 1]],
                       [[0, 2], [2, 2]]]),
-    'lr21': np.array([[[1, 2], [0, 0]],
+    '1222': np.array([[[1, 2], [0, 0]],
                       [[2, 2], [1, 0]]]),
-    'ul21': np.array([[[0, 0], [1, 2]],
+    '0010': np.array([[[0, 0], [1, 2]],
                       [[1, 0], [2, 2]]]),
-    'll21': np.array([[[1, 0], [0, 2]],
+    '1020': np.array([[[1, 0], [0, 2]],
                       [[2, 0], [1, 2]]]),
-    'ur21': np.array([[[0, 2], [1, 0]],
+    '0212': np.array([[[0, 2], [1, 0]],
                       [[1, 2], [2, 0]]]),
-    'lr12': np.array([[[2, 1], [0, 0]],
+    '2122': np.array([[[2, 1], [0, 0]],
                       [[2, 2], [0, 1]]]),
-    'ul12': np.array([[[0, 0], [2, 1]],
+    '0001': np.array([[[0, 0], [2, 1]],
                       [[0, 1], [2, 2]]]),
-    'll12': np.array([[[2, 0], [0, 1]],
+    '2021': np.array([[[2, 0], [0, 1]],
                       [[2, 1], [0, 2]]]),
-    'ur12': np.array([[[0, 1], [2, 0]],
+    '0102': np.array([[[0, 1], [2, 0]],
                       [[0, 2], [2, 1]]]),
-    'lr11': np.array([[[2, 2], [0, 0]]]),
-    'ul11': np.array([[[0, 0], [2, 2]]]),
-    'll11': np.array([[[2, 0], [0, 2]]]),
-    'ur11': np.array([[[0, 2], [2, 0]]])}
+    '2222': np.array([[[2, 2], [0, 0]]]),
+    '0000': np.array([[[0, 0], [2, 2]]]),
+    '2020': np.array([[[2, 0], [0, 2]]]),
+    '0202': np.array([[[0, 2], [2, 0]]])}
 
-slice_dict = {}
-slice_dict['t1'] = slice(None, 1 * 256)  # the top row
-slice_dict['t2'] = slice(None, 2 * 256)  # the top 2 rows
-slice_dict['h3'] = slice(None, None)     # all rows
-slice_dict['b2'] = slice(1 * 256, None)  # the bottom 2 rows
-slice_dict['b1'] = slice(2 * 256, None)  # the bottom row
 
-slice_dict['l1'] = slice_dict['t1']  # the left column
-slice_dict['l2'] = slice_dict['t2']  # the left 2 columns
-slice_dict['v3'] = slice_dict['h3']  # all columns
-slice_dict['r2'] = slice_dict['b2']  # the right 2 columns
-slice_dict['r1'] = slice_dict['b1']  # the right column
+def generate_overlay_tag_slices():
+    # l left
+    # r right
+    # t top
+    # b bottom
+    # v vertical
+    # h horizontal
 
-overlay_tag_slices = {
-    'vr32': [(slice_dict['v3'], slice_dict['r2']), (slice_dict['v3'], slice_dict['l2'])],
-    'vl32': [(slice_dict['v3'], slice_dict['l2']), (slice_dict['v3'], slice_dict['r2'])],
-    'hd23': [(slice_dict['b2'], slice_dict['h3']), (slice_dict['t2'], slice_dict['h3'])],
-    'hu23': [(slice_dict['t2'], slice_dict['h3']), (slice_dict['b2'], slice_dict['h3'])],
-    'lr22': [(slice_dict['b2'], slice_dict['r2']), (slice_dict['t2'], slice_dict['l2'])],
-    'ul22': [(slice_dict['t2'], slice_dict['l2']), (slice_dict['b2'], slice_dict['r2'])],
-    'll22': [(slice_dict['b2'], slice_dict['l2']), (slice_dict['t2'], slice_dict['r2'])],
-    'ur22': [(slice_dict['t2'], slice_dict['r2']), (slice_dict['b2'], slice_dict['l2'])],
-    'vr31': [(slice_dict['v3'], slice_dict['r1']), (slice_dict['v3'], slice_dict['l1'])],
-    'vl31': [(slice_dict['v3'], slice_dict['l1']), (slice_dict['v3'], slice_dict['r1'])],
-    'hd13': [(slice_dict['b1'], slice_dict['h3']), (slice_dict['t1'], slice_dict['h3'])],
-    'hu13': [(slice_dict['t1'], slice_dict['h3']), (slice_dict['b1'], slice_dict['h3'])],
-    'lr21': [(slice_dict['b2'], slice_dict['r1']), (slice_dict['t2'], slice_dict['l1'])],
-    'ul21': [(slice_dict['t2'], slice_dict['l1']), (slice_dict['b2'], slice_dict['r1'])],
-    'll21': [(slice_dict['b2'], slice_dict['l1']), (slice_dict['t2'], slice_dict['r1'])],
-    'ur21': [(slice_dict['t2'], slice_dict['r1']), (slice_dict['b2'], slice_dict['l1'])],
-    'lr12': [(slice_dict['b1'], slice_dict['r2']), (slice_dict['t1'], slice_dict['l2'])],
-    'ul12': [(slice_dict['t1'], slice_dict['l2']), (slice_dict['b1'], slice_dict['r2'])],
-    'll12': [(slice_dict['b1'], slice_dict['l2']), (slice_dict['t1'], slice_dict['r2'])],
-    'ur12': [(slice_dict['t1'], slice_dict['r2']), (slice_dict['b1'], slice_dict['l2'])],
-    'lr11': [(slice_dict['b1'], slice_dict['r1']), (slice_dict['t1'], slice_dict['l1'])],
-    'ul11': [(slice_dict['t1'], slice_dict['l1']), (slice_dict['b1'], slice_dict['r1'])],
-    'll11': [(slice_dict['b1'], slice_dict['l1']), (slice_dict['t1'], slice_dict['r1'])],
-    'ur11': [(slice_dict['t1'], slice_dict['r1']), (slice_dict['b1'], slice_dict['l1'])]
-}
+    sd = {}  # sd -> short for slice dictionary
 
-fuzzy_lookup = {}
-pair_tag_lookup = {}
-overlay_tag_list = []
+    sd['t1'] = slice(None, 1*256)  # keep the top row
+    sd['t2'] = slice(None, 2*256)  # keep the top 2 rows
+    sd['h3'] = slice(None, None)  # keep all rows
+    sd['b2'] = slice(1*256, None)  # keep the bottom 2 rows
+    sd['b1'] = slice(2*256, None)  # keep either the bottom row
+
+    sd['l1'] = sd['t1']  # keep the left column
+    sd['l2'] = sd['t2']  # keep the left 2 columns
+    sd['v3'] = sd['h3']  # keep all columns
+    sd['r2'] = sd['b2']  # keep the right 2 columns
+    sd['r1'] = sd['b1']  # keep the right column
+
+    return {'0122': [(sd['v3'], sd['r2']), (sd['v3'], sd['l2'])],
+            '0021': [(sd['v3'], sd['l2']), (sd['v3'], sd['r2'])],
+            '1022': [(sd['b2'], sd['h3']), (sd['t2'], sd['h3'])],
+            '0012': [(sd['t2'], sd['h3']), (sd['b2'], sd['h3'])],
+            '1122': [(sd['b2'], sd['r2']), (sd['t2'], sd['l2'])],
+            '0011': [(sd['t2'], sd['l2']), (sd['b2'], sd['r2'])],
+            '1021': [(sd['b2'], sd['l2']), (sd['t2'], sd['r2'])],
+            '0112': [(sd['t2'], sd['r2']), (sd['b2'], sd['l2'])],
+            '0222': [(sd['v3'], sd['r1']), (sd['v3'], sd['l1'])],
+            '0020': [(sd['v3'], sd['l1']), (sd['v3'], sd['r1'])],
+            '2022': [(sd['b1'], sd['h3']), (sd['t1'], sd['h3'])],
+            '0002': [(sd['t1'], sd['h3']), (sd['b1'], sd['h3'])],
+            '1222': [(sd['b2'], sd['r1']), (sd['t2'], sd['l1'])],
+            '0010': [(sd['t2'], sd['l1']), (sd['b2'], sd['r1'])],
+            '1020': [(sd['b2'], sd['l1']), (sd['t2'], sd['r1'])],
+            '0212': [(sd['t2'], sd['r1']), (sd['b2'], sd['l1'])],
+            '2122': [(sd['b1'], sd['r2']), (sd['t1'], sd['l2'])],
+            '0001': [(sd['t1'], sd['l2']), (sd['b1'], sd['r2'])],
+            '2021': [(sd['b1'], sd['l2']), (sd['t1'], sd['r2'])],
+            '0102': [(sd['t1'], sd['r2']), (sd['b1'], sd['l2'])],
+            '2222': [(sd['b1'], sd['r1']), (sd['t1'], sd['l1'])],
+            '0000': [(sd['t1'], sd['l1']), (sd['b1'], sd['r1'])],
+            '2020': [(sd['b1'], sd['l1']), (sd['t1'], sd['r1'])],
+            '0202': [(sd['t1'], sd['r1']), (sd['b1'], sd['l1'])]}
+
+
+overlay_tag_slices = generate_overlay_tag_slices()
+
+
+def generate_pair_tag_lookup():
+    ptl = {}
+    for overlay_tag, overlay_map in overlay_tag_maps.items():
+        for pair in overlay_map:
+            pair_key = tuple([tuple(pair[0]), tuple(pair[1])])
+            ptl[pair_key] = overlay_tag
+    return ptl
+
+
+pair_tag_lookup = generate_pair_tag_lookup()
+
 overlay_map_counter = Counter()
-
-for overlay_tag, overlay_map in overlay_tag_maps.items():
-    overlay_tag_list.append(overlay_tag)
-    for pair in overlay_map:
-        pair_key = tuple([tuple(pair[0]), tuple(pair[1])])
-        pair_tag_lookup[pair_key] = overlay_tag
-
-# if the order of overlay_tag_maps above ever changes, overlay_tag_pairs will need to be updated accordingly.
-overlay_tag_pairs = {}
-for i in range(0, len(overlay_tag_list), 2):
-    overlay_tag_pairs[overlay_tag_list[i]] = overlay_tag_list[i + 1]
-    overlay_tag_pairs[overlay_tag_list[i + 1]] = overlay_tag_list[i]
 
 hash_algos = {
     # 'md5SumHash_16': lambda: None,
@@ -425,18 +453,6 @@ class SDCImageContainer(dict):
                     #     if len(stats) == 0:
                     #         continue
                     #     fuzzy_matches.append(stats)
-
-                    # for (key1, key2), score in zip(stats['md5SumHash_16'], stats['scores']):
-                    #     if key1 == key2 or score < self.best_score_threshold:
-                    #         continue
-                    #
-                    #     if key1 not in fuzzy_lookup:
-                    #         fuzzy_lookup[key1] = set()
-                    #     fuzzy_lookup[key1].add(key2)
-                    #
-                    #     if key2 not in fuzzy_lookup:
-                    #         fuzzy_lookup[key2] = set()
-                    #     fuzzy_lookup[key2].add(key1)
 
         return
 
