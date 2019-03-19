@@ -1,8 +1,9 @@
-
-
+import numpy as np
+import hashlib
 # [00, 01, 02]
 # [10, 11, 12]
 # [20, 21, 22]
+
 
 def eq(g, h):
     assert(np.all(g == h))
@@ -20,19 +21,19 @@ q = np.array([[10, 11, 12, 13, 14, 15, 16],
               [36, 37, 38, 39, 40, 41, 42],
               [43, 44, 45, 46, 47, 48, 49]])
 
-ky = {} # A dict that maps tags to numpy array ops.
-ky['hv1'] = (2, 4) # drop these to make 1 row (or col) overlap
-ky['hv2'] = (1, 3, 5) # drop these to make 2 adjacent rows (or cols) overlap
-ky['hv3'] = (0, 1, 5, 6) # drop these to make 3 rows (or cols) overlap
-ky['ul1'] = 0 # keeps only the top row or the left most column
-ky['ul2'] = slice(None, 2) # keeps the top 2 rows or the left 2 columns
-ky['ul3'] = slice(None, 3) # keeps the top 3 rows or the left 3 columns
-ky['ccc'] = slice(None, None) # keeps all rows or all columns
-ky['lr3'] = slice(-3, None) # keeps the bottom 3 rows or the right 3 columns
-ky['lr2'] = slice(1, None) # keeps the bottom 2 rows or the right 2 columns
-ky['lr1'] = 2 # keeps only the bottom row or the right most column
+ky = {}  # A dict that maps tags to numpy array ops.
+ky['hv1'] = (2, 4)  # drop these to make 1 row (or col) overlap
+ky['hv2'] = (1, 3, 5)  # drop these to make 2 adjacent rows (or cols) overlap
+ky['hv3'] = (0, 1, 5, 6)  # drop these to make 3 rows (or cols) overlap
+ky['ul1'] = 0  # keeps only the top row or the left most column
+ky['ul2'] = slice(None, 2)  # keeps the top 2 rows or the left 2 columns
+ky['ul3'] = slice(None, 3)  # keeps the top 3 rows or the left 3 columns
+ky['ccc'] = slice(None, None)  # keeps all rows or all columns
+ky['lr3'] = slice(-3, None)  # keeps the bottom 3 rows or the right 3 columns
+ky['lr2'] = slice(1, None)  # keeps the bottom 2 rows or the right 2 columns
+ky['lr1'] = 2  # keeps only the bottom row or the right most column
 
-f_drop = {} # which (rows, columns) to drop for constructing each pattern.
+f_drop = {}  # which (rows, columns) to drop from q above for constructing each pattern.
 f_drop['single_corner'] = ('hv1', 'hv1')
 f_drop['double_vertical'] = ('hv2', 'hv1')
 f_drop['double_horizontal'] = ('hv1', 'hv2')
@@ -48,15 +49,15 @@ combos['single_corner'] = [
         'bloc': {'g': ('ul3', 'ul3'), 'h': ('lr3', 'lr3')},
         'test': {'g': ('lr1', 'lr1'), 'h': ('ul1', 'ul1')},
         'maps': np.array([[[2, 2], [0, 0]]])
-    },{
+    }, {
         'bloc': {'g': ('lr3', 'lr3'), 'h': ('ul3', 'ul3')},
         'test': {'g': ('ul1', 'ul1'), 'h': ('lr1', 'lr1')},
         'maps': np.array([[[0, 0], [2, 2]]])
-    },{
+    }, {
         'bloc': {'g': ('ul3', 'lr3'), 'h': ('lr3', 'ul3')},
         'test': {'g': ('lr1', 'ul1'), 'h': ('ul1', 'lr1')},
         'maps': np.array([[[2, 0], [0, 2]]])
-    },{
+    }, {
         'bloc': {'g': ('lr3', 'ul3'), 'h': ('ul3', 'lr3')},
         'test': {'g': ('ul1', 'lr1'), 'h': ('lr1', 'ul1')},
         'maps': np.array([[[0, 2], [2, 0]]])
