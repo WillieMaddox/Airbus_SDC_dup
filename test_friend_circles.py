@@ -624,7 +624,7 @@ class SDCImage:
 
 
 def main():
-    ship_dir = "data/"
+    ship_dir = ".data/input"
     train_image_dir = os.path.join(ship_dir, 'train_768')
     image_hash_grids_file = os.path.join(ship_dir, "image_hash_grids.pkl")
     image_entropy_grids_file = os.path.join(ship_dir, "image_entropy_grids.pkl")
