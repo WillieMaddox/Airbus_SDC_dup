@@ -45,25 +45,15 @@ def channel_shift(hls, chan, val):
         scaled_img[:, :, idx] += scaled_val
 
     elif idx == 1:  # lightness
-        # TODO: Could this be simplified?
-        l = hls[:, :, idx] * 1.
-        min_0 = np.min(l)
-        max_0 = np.max(l)
-        if val < 0:
-            scaled_val = -1 * val / 100.
-            min_1 = min_0 / 2.
-            max_1 = max_0 / 2.
-        else:
-            scaled_val = val / 100.
-            min_1 = (min_0 + 255.) / 2.
-            max_1 = (max_0 + 255.) / 2.
-        min_v = (min_1 - min_0) * scaled_val + min_0
-        max_v = (max_1 - max_0) * scaled_val + max_0
-        # FIXME: Divide by zero error if image happens to be all black.
-        l_shifted = (l - min_0) * (max_v - min_v) / (max_0 - min_0) + min_v
-        l_shifted = np.clip(l_shifted, 0, 255)
+
+        l = hls[:, :, idx] * (1. / 255.)
+        v2 = val / 200.
+        one_m_v2 = 1 - v2
+        one_p_v2 = 1 + v2
+        l_shifted = l * one_m_v2 + v2 if val > 0 else l * one_p_v2
+        l_shifted = np.clip(l_shifted, 0, 1)
         scaled_img = np.copy(hls)
-        scaled_img[:, :, idx] = np.around(l_shifted).astype(np.uint8)
+        scaled_img[:, :, idx] = np.around(255 * l_shifted).astype(np.uint8)
 
     elif idx == 2:  # saturation
 
