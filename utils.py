@@ -7,6 +7,10 @@ import cv2
 
 EPS = np.finfo(np.float32).eps
 
+chan_idx_map = {'H': 0, 'L': 1, 'S': 2}
+chan_cv2_scale_map = {'H': 256, 'L': 256, 'S': 256}
+chan_gimp_scale_map = {'H': 360, 'L': 200, 'S': 100}
+
 
 def get_datetime_now(t=None, fmt='%Y_%m%d_%H%M_%S'):
     """Return timestamp as a string; default: current time, format: YYYY_DDMM_hhmm_ss."""
@@ -209,3 +213,56 @@ def get_best_model_name(run_dir):
     print(best_model_filename)
     return best_model_filename
 
+
+def get_tile(img, i, j, sz=256):
+    return img[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
+
+
+def to_hls(bgr):
+    return cv2.cvtColor(bgr, cv2.COLOR_BGR2HLS_FULL)
+
+
+def to_bgr(hls):
+    return cv2.cvtColor(hls, cv2.COLOR_HLS2BGR_FULL)
+
+
+def channel_shift(img, chan, val):
+    """
+    img must already be in hls (hue, lightness, saturation) format.
+    img values must be uint8. [0, 255] so that hue will wrap around correctly.
+    """
+
+    gimp_scale = chan_gimp_scale_map[chan]
+    idx = chan_idx_map[chan]
+
+    # TODO: Add a plot showing how we arrived at each of the three scaling options.
+    if idx == 0:  # hue
+
+        scaled_val = 255. * val / gimp_scale
+        scaled_val = np.around(scaled_val).astype(np.uint8)
+        scaled_img = np.copy(img)
+        scaled_img[:, :, idx] += scaled_val  # this line won't work correctly if img is not in bytes.
+
+    elif idx == 1:  # lightness
+
+        l = img[:, :, idx] * (1. / 255.)
+        v2 = val / gimp_scale
+        one_m_v2 = 1 - v2
+        one_p_v2 = 1 + v2
+        l_shifted = l * one_m_v2 + v2 if val > 0 else l * one_p_v2
+        l_shifted = np.clip(l_shifted, 0, 1)
+        scaled_img = np.copy(img)
+        scaled_img[:, :, idx] = np.around(255 * l_shifted).astype(np.uint8)
+
+    elif idx == 2:  # saturation
+
+        scaled_val = (val / gimp_scale) + 1.
+        s_shifted = img[:, :, idx] * scaled_val
+        s_shifted = np.clip(s_shifted, 0, 255)
+        scaled_img = np.copy(img)
+        scaled_img[:, :, idx] = np.around(s_shifted).astype(np.uint8)
+
+    else:
+        raise ValueError
+
+    return scaled_img

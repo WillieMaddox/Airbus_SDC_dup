@@ -4,7 +4,6 @@ import hashlib
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-import h5py
 import cv2
 from cv2 import img_hash
 from collections import defaultdict
@@ -383,10 +382,6 @@ class SDCImageContainer(dict):
         return scores
 
     def find_valid_pairings_by_hash(self, hash_id, img_list, overlap_level):
-        # img_cache = {}
-        # with h5py.File(self.h5_file, 'r') as h5:
-        #     for img_id in img_list:
-        #         img_cache[img_id] = h5[img_id][:]
 
         kk = 0
         # matches = []
