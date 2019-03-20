@@ -1,4 +1,5 @@
 import os
+from shutil import copyfile
 import numpy as np
 from datetime import datetime
 from tqdm import tqdm
@@ -266,3 +267,61 @@ def channel_shift(img, chan, val):
         raise ValueError
 
     return scaled_img
+
+
+def read_dup_truth(filename='dup_truth.txt'):
+
+    dup_truth = {}
+    if not os.path.exists(filename):
+        return dup_truth
+
+    with open(filename, 'r') as ifs:
+        for line in ifs.readlines():
+            img_id1, img_id2, is_dup = line.strip().split(' ')
+            if img_id2 < img_id1:
+                img_id1, img_id2 = img_id2, img_id1
+            if (img_id1, img_id2) in dup_truth:
+                continue
+            dup_truth[(img_id1, img_id2)] = int(is_dup)
+
+    return dup_truth
+
+
+def write_dup_truth(dup_truth, filename='dup_truth.txt'):
+
+    with open(filename, 'w') as ofs:
+        for (img_id1, img_id2), is_dup in sorted(dup_truth.items(), key=lambda x: x[0][0]):
+            ofs.write(' '.join([img_id1, img_id2, str(is_dup)]))
+            ofs.write('\n')
+
+
+def backup_dup_truth(filename='dup_truth.txt'):
+
+    if not os.path.exists(filename):
+        return
+
+    filebase, fileext = filename.rsplit('.')
+    new_filename = ''.join([filebase, "_", get_datetime_now(), ".", fileext])
+    copyfile(filename, new_filename)
+    assert os.path.exists(new_filename)
+
+
+def update_dup_truth(update_dict, dup_truth=None, filename='dup_truth.txt'):
+
+    has_updated = False
+    if dup_truth is None:
+        dup_truth = read_dup_truth(filename=filename)
+
+    for (img_id1, img_id2), is_dup in update_dict.items():
+        if img_id2 < img_id1:
+            img_id1, img_id2 = img_id2, img_id1
+        if (img_id1, img_id2) in dup_truth:
+            if dup_truth[(img_id1, img_id2)] != is_dup:
+                raise ValueError(f"{img_id1} and {img_id2} cannot both be {dup_truth[(img_id1, img_id2)]} and {is_dup}")
+            continue
+        dup_truth[(img_id1, img_id2)] = is_dup
+        has_updated = True
+
+    if has_updated:
+        backup_dup_truth(filename=filename)
+        write_dup_truth(dup_truth, filename=filename)
