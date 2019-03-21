@@ -216,18 +216,6 @@ def get_entropy(img):
     return np.array(entropy_vec)
 
 
-def hex_to_int(hash_hex):
-    return int(hash_hex, 16)
-
-
-def int_to_hex(hash_int, hash_len):
-    hash_hex = hex(hash_int)[2:]
-    padding = hash_len - len(hash_hex)
-    if padding > 0:
-        hash_hex = ''.join(['0' * padding, hash_hex])
-    return hash_hex
-
-
 class SDCImageContainer(dict):
 
     def __init__(self, train_image_dir, **kwargs):

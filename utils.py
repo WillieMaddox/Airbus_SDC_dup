@@ -47,6 +47,18 @@ def bce(y_true, y_pred, **kwargs):
     return np.mean(out, axis=-1)
 
 
+def hex_to_int(hash_hex):
+    return int(hash_hex, 16)
+
+
+def int_to_hex(hash_int, hash_len):
+    hash_hex = hex(hash_int)[2:]
+    padding = hash_len - len(hash_hex)
+    if padding > 0:
+        hash_hex = ''.join(['0' * padding, hash_hex])
+    return hash_hex
+
+
 def normalized_hamming_distance(hash1, hash2):
     return np.mean((hash1 != hash2) * 1)
 
