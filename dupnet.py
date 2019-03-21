@@ -40,7 +40,9 @@ def even_split(n_samples, batch_size, split):
 
 def create_loss_and_optimizer(model, learning_rate=0.001):
     # TODO: Probably should change model to use CE instead of LR.
-    loss = torch.nn.MSELoss()
+    # loss = nn.MSELoss()
+    loss = nn.BCELoss()
+    # loss = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     return loss, optimizer
 
