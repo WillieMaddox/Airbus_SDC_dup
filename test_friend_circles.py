@@ -11,6 +11,7 @@ from collections import Counter
 from utils import normalized_hamming_distance
 
 overlay_tag_pairs = {
+    '0022': '0022',
     '0122': '0021',
     '0021': '0122',
     '1022': '0012',
@@ -39,126 +40,68 @@ overlay_tag_pairs = {
 
 
 overlay_tag_maps = {
-    '0122': np.array([[[0, 1], [0, 0]],
-                      [[0, 2], [0, 1]],
-                      [[1, 1], [1, 0]],
-                      [[1, 2], [1, 1]],
-                      [[2, 1], [2, 0]],
-                      [[2, 2], [2, 1]]]),
-    '0021': np.array([[[0, 0], [0, 1]],
-                      [[0, 1], [0, 2]],
-                      [[1, 0], [1, 1]],
-                      [[1, 1], [1, 2]],
-                      [[2, 0], [2, 1]],
-                      [[2, 1], [2, 2]]]),
-    '1022': np.array([[[1, 0], [0, 0]],
-                      [[1, 1], [0, 1]],
-                      [[1, 2], [0, 2]],
-                      [[2, 0], [1, 0]],
-                      [[2, 1], [1, 1]],
-                      [[2, 2], [1, 2]]]),
-    '0012': np.array([[[0, 0], [1, 0]],
-                      [[0, 1], [1, 1]],
-                      [[0, 2], [1, 2]],
-                      [[1, 0], [2, 0]],
-                      [[1, 1], [2, 1]],
-                      [[1, 2], [2, 2]]]),
-    '1122': np.array([[[1, 1], [0, 0]],
-                      [[1, 2], [0, 1]],
-                      [[2, 1], [1, 0]],
-                      [[2, 2], [1, 1]]]),
-    '0011': np.array([[[0, 0], [1, 1]],
-                      [[0, 1], [1, 2]],
-                      [[1, 0], [2, 1]],
-                      [[1, 1], [2, 2]]]),
-    '1021': np.array([[[1, 0], [0, 1]],
-                      [[1, 1], [0, 2]],
-                      [[2, 0], [1, 1]],
-                      [[2, 1], [1, 2]]]),
-    '0112': np.array([[[0, 1], [1, 0]],
-                      [[0, 2], [1, 1]],
-                      [[1, 1], [2, 0]],
-                      [[1, 2], [2, 1]]]),
-    '0222': np.array([[[0, 2], [0, 0]],
-                      [[1, 2], [1, 0]],
-                      [[2, 2], [2, 0]]]),
-    '0020': np.array([[[0, 0], [0, 2]],
-                      [[1, 0], [1, 2]],
-                      [[2, 0], [2, 2]]]),
-    '2022': np.array([[[2, 0], [0, 0]],
-                      [[2, 1], [0, 1]],
-                      [[2, 2], [0, 2]]]),
-    '0002': np.array([[[0, 0], [2, 0]],
-                      [[0, 1], [2, 1]],
-                      [[0, 2], [2, 2]]]),
-    '1222': np.array([[[1, 2], [0, 0]],
-                      [[2, 2], [1, 0]]]),
-    '0010': np.array([[[0, 0], [1, 2]],
-                      [[1, 0], [2, 2]]]),
-    '1020': np.array([[[1, 0], [0, 2]],
-                      [[2, 0], [1, 2]]]),
-    '0212': np.array([[[0, 2], [1, 0]],
-                      [[1, 2], [2, 0]]]),
-    '2122': np.array([[[2, 1], [0, 0]],
-                      [[2, 2], [0, 1]]]),
-    '0001': np.array([[[0, 0], [2, 1]],
-                      [[0, 1], [2, 2]]]),
-    '2021': np.array([[[2, 0], [0, 1]],
-                      [[2, 1], [0, 2]]]),
-    '0102': np.array([[[0, 1], [2, 0]],
-                      [[0, 2], [2, 1]]]),
-    '2222': np.array([[[2, 2], [0, 0]]]),
-    '0000': np.array([[[0, 0], [2, 2]]]),
-    '2020': np.array([[[2, 0], [0, 2]]]),
-    '0202': np.array([[[0, 2], [2, 0]]])}
+    '0022': np.array([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]]),
+    '0122': np.array([[0, 1], [0, 2], [1, 1], [1, 2], [2, 1], [2, 2]]),
+    '0021': np.array([[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1]]),
+    '1022': np.array([[1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]]),
+    '0012': np.array([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]]),
+    '1122': np.array([[1, 1], [1, 2], [2, 1], [2, 2]]),
+    '0011': np.array([[0, 0], [0, 1], [1, 0], [1, 1]]),
+    '1021': np.array([[1, 0], [1, 1], [2, 0], [2, 1]]),
+    '0112': np.array([[0, 1], [0, 2], [1, 1], [1, 2]]),
+    '0222': np.array([[0, 2], [1, 2], [2, 2]]),
+    '0020': np.array([[0, 0], [1, 0], [2, 0]]),
+    '2022': np.array([[2, 0], [2, 1], [2, 2]]),
+    '0002': np.array([[0, 0], [0, 1], [0, 2]]),
+    '1222': np.array([[1, 2], [2, 2]]),
+    '0010': np.array([[0, 0], [1, 0]]),
+    '1020': np.array([[1, 0], [2, 0]]),
+    '0212': np.array([[0, 2], [1, 2]]),
+    '2122': np.array([[2, 1], [2, 2]]),
+    '0001': np.array([[0, 0], [0, 1]]),
+    '2021': np.array([[2, 0], [2, 1]]),
+    '0102': np.array([[0, 1], [0, 2]]),
+    '2222': np.array([[2, 2]]),
+    '0000': np.array([[0, 0]]),
+    '2020': np.array([[2, 0]]),
+    '0202': np.array([[0, 2]])}
 
 
 def generate_overlay_tag_slices():
-    # l left
-    # r right
-    # t top
-    # b bottom
-    # v vertical
-    # h horizontal
 
-    sd = {}  # sd -> short for slice dictionary
+    # sd -> short for slice dictionary
+    sd = {
+        '00': slice(None, 1*256),  # top row (left column)
+        '01': slice(None, 2*256),  # top 2 rows (left 2 columns)
+        '02': slice(None, None),   # all rows (all columns)
+        '12': slice(1*256, None),  # bottom 2 rows (right 2 columns)
+        '22': slice(2*256, None),  # bottom row (right column)
+    }
 
-    sd['t1'] = slice(None, 1*256)  # keep the top row
-    sd['t2'] = slice(None, 2*256)  # keep the top 2 rows
-    sd['h3'] = slice(None, None)  # keep all rows
-    sd['b2'] = slice(1*256, None)  # keep the bottom 2 rows
-    sd['b1'] = slice(2*256, None)  # keep either the bottom row
-
-    sd['l1'] = sd['t1']  # keep the left column
-    sd['l2'] = sd['t2']  # keep the left 2 columns
-    sd['v3'] = sd['h3']  # keep all columns
-    sd['r2'] = sd['b2']  # keep the right 2 columns
-    sd['r1'] = sd['b1']  # keep the right column
-
-    return {'0122': [(sd['v3'], sd['r2']), (sd['v3'], sd['l2'])],
-            '0021': [(sd['v3'], sd['l2']), (sd['v3'], sd['r2'])],
-            '1022': [(sd['b2'], sd['h3']), (sd['t2'], sd['h3'])],
-            '0012': [(sd['t2'], sd['h3']), (sd['b2'], sd['h3'])],
-            '1122': [(sd['b2'], sd['r2']), (sd['t2'], sd['l2'])],
-            '0011': [(sd['t2'], sd['l2']), (sd['b2'], sd['r2'])],
-            '1021': [(sd['b2'], sd['l2']), (sd['t2'], sd['r2'])],
-            '0112': [(sd['t2'], sd['r2']), (sd['b2'], sd['l2'])],
-            '0222': [(sd['v3'], sd['r1']), (sd['v3'], sd['l1'])],
-            '0020': [(sd['v3'], sd['l1']), (sd['v3'], sd['r1'])],
-            '2022': [(sd['b1'], sd['h3']), (sd['t1'], sd['h3'])],
-            '0002': [(sd['t1'], sd['h3']), (sd['b1'], sd['h3'])],
-            '1222': [(sd['b2'], sd['r1']), (sd['t2'], sd['l1'])],
-            '0010': [(sd['t2'], sd['l1']), (sd['b2'], sd['r1'])],
-            '1020': [(sd['b2'], sd['l1']), (sd['t2'], sd['r1'])],
-            '0212': [(sd['t2'], sd['r1']), (sd['b2'], sd['l1'])],
-            '2122': [(sd['b1'], sd['r2']), (sd['t1'], sd['l2'])],
-            '0001': [(sd['t1'], sd['l2']), (sd['b1'], sd['r2'])],
-            '2021': [(sd['b1'], sd['l2']), (sd['t1'], sd['r2'])],
-            '0102': [(sd['t1'], sd['r2']), (sd['b1'], sd['l2'])],
-            '2222': [(sd['b1'], sd['r1']), (sd['t1'], sd['l1'])],
-            '0000': [(sd['t1'], sd['l1']), (sd['b1'], sd['r1'])],
-            '2020': [(sd['b1'], sd['l1']), (sd['t1'], sd['r1'])],
-            '0202': [(sd['t1'], sd['r1']), (sd['b1'], sd['l1'])]}
+    return {'0122': (sd['02'], sd['12']),
+            '0021': (sd['02'], sd['01']),
+            '1022': (sd['12'], sd['02']),
+            '0012': (sd['01'], sd['02']),
+            '1122': (sd['12'], sd['12']),
+            '0011': (sd['01'], sd['01']),
+            '1021': (sd['12'], sd['01']),
+            '0112': (sd['01'], sd['12']),
+            '0222': (sd['02'], sd['22']),
+            '0020': (sd['02'], sd['00']),
+            '2022': (sd['22'], sd['02']),
+            '0002': (sd['00'], sd['02']),
+            '1222': (sd['12'], sd['22']),
+            '0010': (sd['01'], sd['00']),
+            '1020': (sd['12'], sd['00']),
+            '0212': (sd['01'], sd['22']),
+            '2122': (sd['22'], sd['12']),
+            '0001': (sd['00'], sd['01']),
+            '2021': (sd['22'], sd['01']),
+            '0102': (sd['00'], sd['12']),
+            '2222': (sd['22'], sd['22']),
+            '0000': (sd['00'], sd['00']),
+            '2020': (sd['22'], sd['00']),
+            '0202': (sd['00'], sd['22'])}
 
 
 overlay_tag_slices = generate_overlay_tag_slices()
@@ -166,10 +109,10 @@ overlay_tag_slices = generate_overlay_tag_slices()
 
 def generate_pair_tag_lookup():
     ptl = {}
-    for overlay_tag, overlay_map in overlay_tag_maps.items():
-        for pair in overlay_map:
+    for tag1, tag2 in overlay_tag_pairs.items():
+        for pair in zip(overlay_tag_maps[tag1], overlay_tag_maps[tag2]):
             pair_key = tuple([tuple(pair[0]), tuple(pair[1])])
-            ptl[pair_key] = overlay_tag
+            ptl[pair_key] = tag1
     return ptl
 
 
@@ -327,30 +270,30 @@ class SDCImageContainer(dict):
         ab = a + b
         return np.sum(255 - ab) / (255 * n)
 
-    def get_overlay_scores_orig(self, img1, img2, overlay_map):
-        scores = []
-        for ((i, j), (k, l)) in overlay_map:
-            tile1 = self.get_tile(img1, i, j)
-            tile2 = self.get_tile(img2, k, l)
-            score = self.fuzzy_compare(tile1, tile2)
-            scores.append(score)
-            if score < self.best_score_threshold:
-                break
-        return scores
+    def check_exact_match(self, img1, img2, overlay_tag):
+        slice1 = overlay_tag_slices[overlay_tag]
+        slice2 = overlay_tag_slices[overlay_tag_pairs[overlay_tag]]
+        overlay1 = img1[slice1[0], slice1[1]]
+        overlay2 = img2[slice2[0], slice2[1]]
+        is_perfect_score = np.all(overlay1 == overlay2)
+        return is_perfect_score
 
-    def get_overlay_score_old(self, img1, img2, overlay_tag):
-        slc1, slc2 = overlay_tag_slices[overlay_tag]
-        overlay1 = img1[slc1[0], slc1[1]]
-        overlay2 = img2[slc2[0], slc2[1]]
+    def get_bmh_score(self, img1, img2, overlay_tag):
+        slice1 = overlay_tag_slices[overlay_tag]
+        slice2 = overlay_tag_slices[overlay_tag_pairs[overlay_tag]]
+        overlay1 = img1[slice1[0], slice1[1]]
+        overlay2 = img2[slice2[0], slice2[1]]
         bmh1 = img_hash.blockMeanHash(overlay1, mode=0)
         bmh2 = img_hash.blockMeanHash(overlay2, mode=0)
         score = self.fuzzy_compare(bmh1, bmh2)
         return score
 
-    def get_overlay_score(self, sdc1, sdc2, overlay_map):
+    def get_overlay_score(self, sdc1, sdc2, overlay_tag):
+        overlay_map1 = overlay_tag_maps[overlay_tag]
+        overlay_map2 = overlay_tag_maps[overlay_tag_pairs[overlay_tag]]
         bmh1_list = []
         bmh2_list = []
-        for ((i, j), (k, l)) in overlay_map:
+        for ((i, j), (k, l)) in zip(overlay_map1, overlay_map2):
             bmh1 = sdc1.tile_hash_grid[(i, j)]
             bmh2 = sdc2.tile_hash_grid[(k, l)]
             bmh1_list.append(bmh1)
@@ -360,9 +303,11 @@ class SDCImageContainer(dict):
         score = self.fuzzy_compare(bmh1_arr, bmh2_arr)
         return score
 
-    def get_tile_scores(self, sdc1, sdc2, overlay_map):
+    def get_tile_scores(self, sdc1, sdc2, overlay_tag):
+        overlay_map1 = overlay_tag_maps[overlay_tag]
+        overlay_map2 = overlay_tag_maps[overlay_tag_pairs[overlay_tag]]
         scores = []
-        for ((i, j), (k, l)) in overlay_map:
+        for ((i, j), (k, l)) in zip(overlay_map1, overlay_map2):
             bmh1 = sdc1.tile_hash_grid[(i, j)]
             bmh2 = sdc2.tile_hash_grid[(k, l)]
             score = self.fuzzy_compare(bmh1, bmh2)
@@ -371,18 +316,14 @@ class SDCImageContainer(dict):
 
     def find_valid_pairings_by_hash(self, hash_id, img_list, overlap_level):
 
-        kk = 0
-        # matches = []
-        overlay64_tags = {tag for tag, tiles in overlay_tag_maps.items() if len(tiles) in (overlap_level,)}  # should pass as arg
+        overlay_64321_tags = {tag for tag, tiles in overlay_tag_maps.items() if len(tiles) in (overlap_level,)}  # should pass as arg
+
         for i, img_id1 in enumerate(img_list):
-            # img1 = img_cache[img_id1]
             sdc1 = self.__getitem__(img_id1)
             tiles1 = [key for key, value in sdc1.tile_hash_grid.items() if value == hash_id]
             for j, img_id2 in enumerate(img_list):
                 if j >= i:
                     continue
-                kk += 1
-                # img2 = img_cache[img_id2]
                 sdc2 = self.__getitem__(img_id2)
                 tiles2 = [key for key, value in sdc2.tile_hash_grid.items() if value == hash_id]
 
@@ -393,7 +334,7 @@ class SDCImageContainer(dict):
                         pair_key = tuple([tuple(tile1), tuple(tile2)])
                         overlay_tags.add(pair_tag_lookup.get(pair_key))
 
-                overlay_tags.intersection_update(overlay64_tags)
+                overlay_tags.intersection_update(overlay_64321_tags)
 
                 if len(overlay_tags) == 0:
                     continue
@@ -441,11 +382,11 @@ class SDCImageContainer(dict):
 
     def update_overlay_matches(self, sdc1, sdc2, overlay_tag):
 
-        overlay_score = self.get_overlay_score(sdc1, sdc2, overlay_tag_maps[overlay_tag])
+        overlay_score = self.get_overlay_score(sdc1, sdc2, overlay_tag)
         if overlay_score < self.minimum_score_threshold:
             return
 
-        tile_scores = self.get_tile_scores(sdc1, sdc2, overlay_tag_maps[overlay_tag])
+        tile_scores = self.get_tile_scores(sdc1, sdc2, overlay_tag)
         if min(tile_scores) < self.minimum_score_threshold:
             return
 
@@ -453,7 +394,7 @@ class SDCImageContainer(dict):
 
     def update_overlay_maps(self, sdc1, sdc2, overlay_tag, overlay_score=None, tile_scores=None):
 
-        overlay_score = overlay_score or self.get_overlay_score(sdc1, sdc2, overlay_tag_maps[overlay_tag])
+        overlay_score = overlay_score or self.get_overlay_score(sdc1, sdc2, overlay_tag)
 
         # if sdc1.overlay_image_scores[overlay_tag] != sdc2.overlay_image_scores[overlay_tag_pairs[overlay_tag]]:
         #     print(sdc1.overlay_image_scores[overlay_tag])
@@ -466,7 +407,8 @@ class SDCImageContainer(dict):
         #     return
 
         if tile_scores is not None or len(tile_scores) != len(overlay_tag_maps[overlay_tag]):
-            tile_scores = self.get_tile_scores(sdc1, sdc2, overlay_tag_maps[overlay_tag])
+            tile_scores = self.get_tile_scores(sdc1, sdc2, overlay_tag)
+
         if min(tile_scores) < self.minimum_score_threshold:
             return
 
@@ -552,10 +494,11 @@ class SDCImage:
         self._tile_hash_grid = tile_hash_grid
         self._tile_entropy_grid = tile_entropy_grid
 
-        self.fuzzy_tiles = defaultdict(dict)
         self.overlay_image_names = {tag: '' for tag, tiles in overlay_tag_maps.items()}
         self.overlay_image_scores = {tag: 0.0 for tag, tiles in overlay_tag_maps.items()}
         self.overlay_tile_scores = np.zeros((3, 3, 3, 3), dtype=np.float64)
+
+        self.overlay_image_maps = {tag: defaultdict(str) for tag, tiles in overlay_tag_maps.items()}
 
     def get_img(self):
         return cv2.imread(self.filename)
@@ -598,10 +541,11 @@ class SDCImage:
 
         self.overlay_image_names[tag] = other_sdc.img_id
         self.overlay_image_scores[tag] = overlay_score
-        for ((i, j), (k, l)), s in zip(overlay_tag_maps[tag], tile_scores):
+
+        for ((i, j), (k, l), s) in zip(overlay_tag_maps[tag], overlay_tag_maps[overlay_tag_pairs[tag]], tile_scores):
             self.overlay_tile_scores[i, j, k, l] = s
-            # if self.tile_hash_grid[(i, j)] != other_sdc.tile_hash_grid[(k, l)]:
-            #     self.fuzzy_tiles[other_sdc.img_id][self.tile_hash_grid[(i, j)]] = other_sdc.tile_hash_grid[(k, l)]
+
+        self.overlay_image_maps[tag][other_sdc.img_id] = {'overlay_score': overlay_score, 'tile_scores': tile_scores}
 
         overlay_map_counter[tag] += 1
 
@@ -615,35 +559,42 @@ def main():
     sdc_images = SDCImageContainer(train_image_dir)
     sdc_images.load_3x3_grids(image_hash_grids_file, image_entropy_grids_file)
 
-    img_ids = os.listdir(train_image_dir)
-    img_ids = filter_duplicates(img_ids)
+    n_matching_tiles = 6  # 5:14 minutes
+    overlay_matches_filename = f'overlay_matches_{n_matching_tiles}.pkl'
 
-    hash_dict = defaultdict(set)
-    for img_id in tqdm(img_ids):
-        for h in sdc_images[img_id].tile_hash_grid.values():
-            hash_dict[h].add(img_id)  # hex
+    if not os.path.exists(overlay_matches_filename):
 
-    sorted_hash_dict = {}
-    for key, dups in sorted(hash_dict.items(), key=lambda x: len(x[1]), reverse=True):
-        if 2 <= len(dups):
-            sorted_hash_dict[key] = dups
+        img_ids = os.listdir(train_image_dir)
+        img_ids = filter_duplicates(img_ids)
 
-    # hash_ids = list(sorted_hash_dict)
-    # for hash_id in tqdm(hash_ids):
-    #     img_list = list(sorted(sorted_hash_dict[hash_id]))
-    #     sdc_images.find_valid_pairings_by_hash(hash_id, img_list, 6)
-    #
-    # matches_list = []
-    # for key, values in sdc_images.matches.items():
-    #     for row in values:
-    #         matches_list.append((key[0], key[1], row[0], row[1], min(row[2])))
-    # df = pd.DataFrame(matches_list)
-    # df.to_pickle('overlay_matches_6.pkl')
+        hash_dict = defaultdict(set)
+        for img_id in tqdm(img_ids):
+            for h in sdc_images[img_id].tile_hash_grid.values():
+                hash_dict[h].add(img_id)
 
-    df = pd.read_pickle('overlay_matches_6.pkl')
-    sdc_images.matches = defaultdict(list)
-    for row in tqdm(df.to_dict('split')['data']):
-        sdc_images.matches[(row[0], row[1])].append((row[2], row[3], [row[4]]))
+        sorted_hash_dict = {}
+        for key, dups in sorted(hash_dict.items(), key=lambda x: len(x[1]), reverse=True):
+            if len(dups) > 1:
+                sorted_hash_dict[key] = dups
+
+        hash_ids = list(sorted_hash_dict)
+        for hash_id in tqdm(hash_ids):
+            img_list = list(sorted(sorted_hash_dict[hash_id]))
+            sdc_images.find_valid_pairings_by_hash(hash_id, img_list, n_matching_tiles)
+
+        matches_list = []
+        for key, values in sdc_images.matches.items():
+            for row in values:
+                matches_list.append((key[0], key[1], row[0], row[1], min(row[2])))
+        df = pd.DataFrame(matches_list)
+        df.to_pickle(overlay_matches_filename)
+
+    else:
+
+        df = pd.read_pickle(overlay_matches_filename)
+        sdc_images.matches = defaultdict(list)
+        for row in tqdm(df.to_dict('split')['data']):
+            sdc_images.matches[(row[0], row[1])].append((row[2], row[3], [row[4]]))
 
     for key, values in sorted(sdc_images.matches.items(), key=lambda x: x[0]):
         n_hashes = len(values)
@@ -652,21 +603,6 @@ def main():
         # p2 = all([v[2] == 1 for v in values])  # all have perfect tile scores
         if n_hashes >= 1 and p0 == 1:  # and p1 and p2:
             sdc_images.update_overlay_maps(sdc_images[key[0]], sdc_images[key[1]], values[0][0], overlay_score=values[0][1], tile_scores=values[0][2])
-
-    # hash_dict = defaultdict(set)
-    # for img_id in tqdm(img_ids):
-    #     for h in sdc_images[img_id].tile_hash_grid.values():
-    #         hash_dict[h].add(img_id)  # hex
-    #
-    # sorted_hash_dict = {}
-    # for key, dups in sorted(hash_dict.items(), key=lambda x: len(x[1]), reverse=True):
-    #     if 2 <= len(dups):
-    #         sorted_hash_dict[key] = dups
-    #
-    # hash_ids = list(sorted_hash_dict)
-    # for hash_id in tqdm(hash_ids):
-    #     img_list = list(sorted(sorted_hash_dict[hash_id]))
-    #     sdc_images.find_valid_pairings_by_hash(hash_id, img_list)
 
     print(overlay_map_counter)
 

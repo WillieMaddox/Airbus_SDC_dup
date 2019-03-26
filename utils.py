@@ -144,12 +144,13 @@ def read_dup_truth(filename='dup_truth.txt'):
 
     with open(filename, 'r') as ifs:
         for line in ifs.readlines():
-            img_id1, img_id2, is_dup = line.strip().split(' ')
-            if img_id2 < img_id1:
+            img_id1, img_id2, overlay_tag, is_dup = line.strip().split(' ')
+            if img_id1 > img_id2:
                 img_id1, img_id2 = img_id2, img_id1
-            if (img_id1, img_id2) in dup_truth:
+                overlay_tag = overlay_tag_pairs[overlay_tag]
+            if (img_id1, img_id2, overlay_tag) in dup_truth:
                 continue
-            dup_truth[(img_id1, img_id2)] = int(is_dup)
+            dup_truth[(img_id1, img_id2, overlay_tag)] = int(is_dup)
 
     return dup_truth
 
@@ -157,8 +158,8 @@ def read_dup_truth(filename='dup_truth.txt'):
 def write_dup_truth(dup_truth, filename='dup_truth.txt'):
 
     with open(filename, 'w') as ofs:
-        for (img_id1, img_id2), is_dup in sorted(dup_truth.items(), key=lambda x: x[0][0]):
-            ofs.write(' '.join([img_id1, img_id2, str(is_dup)]))
+        for (img_id1, img_id2, overlay_tag), is_dup in sorted(dup_truth.items(), key=lambda x: x[0][0]):
+            ofs.write(' '.join([img_id1, img_id2, overlay_tag, str(is_dup)]))
             ofs.write('\n')
 
 
@@ -179,16 +180,18 @@ def update_dup_truth(update_dict, dup_truth=None, filename='dup_truth.txt'):
     if dup_truth is None:
         dup_truth = read_dup_truth(filename=filename)
 
-    for (img_id1, img_id2), is_dup in update_dict.items():
-        if img_id2 < img_id1:
+    for (img_id1, img_id2, overlay_tag), is_dup in update_dict.items():
+        if img_id1 > img_id2:
             img_id1, img_id2 = img_id2, img_id1
-        if (img_id1, img_id2) in dup_truth:
-            if dup_truth[(img_id1, img_id2)] != is_dup:
-                raise ValueError(f"{img_id1} and {img_id2} cannot both be {dup_truth[(img_id1, img_id2)]} and {is_dup}")
+            overlay_tag = overlay_tag_pairs[overlay_tag]
+        if (img_id1, img_id2, overlay_tag) in dup_truth:
+            if dup_truth[(img_id1, img_id2, overlay_tag)] != is_dup:
+                raise ValueError(f"{img_id1} and {img_id2} cannot both be {dup_truth[(img_id1, img_id2, overlay_tag)]} and {is_dup}")
             continue
-        dup_truth[(img_id1, img_id2)] = is_dup
+        dup_truth[(img_id1, img_id2, overlay_tag)] = is_dup
         has_updated = True
 
     if has_updated:
         backup_dup_truth(filename=filename)
         write_dup_truth(dup_truth, filename=filename)
+
