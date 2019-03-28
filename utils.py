@@ -277,17 +277,6 @@ def write_dup_truth(dup_truth, filename='dup_truth.txt'):
             ofs.write('\n')
 
 
-def backup_dup_truth(filename='dup_truth.txt'):
-
-    if not os.path.exists(filename):
-        return
-
-    filebase, fileext = filename.rsplit('.')
-    new_filename = ''.join([filebase, "_", get_datetime_now(), ".", fileext])
-    copyfile(filename, new_filename)
-    assert os.path.exists(new_filename)
-
-
 def update_dup_truth(update_dict, dup_truth=None, filename='dup_truth.txt'):
 
     has_updated = False
@@ -306,6 +295,6 @@ def update_dup_truth(update_dict, dup_truth=None, filename='dup_truth.txt'):
         has_updated = True
 
     if has_updated:
-        backup_dup_truth(filename=filename)
+        backup_file(filename)
         write_dup_truth(dup_truth, filename=filename)
 
