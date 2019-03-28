@@ -240,6 +240,16 @@ def channel_shift(img, chan, val):
     return scaled_img
 
 
+def backup_file(filename):
+    if not os.path.exists(filename):
+        return
+
+    filebase, fileext = filename.rsplit('.')
+    new_filename = ''.join([filebase, "_", get_datetime_now(), ".", fileext])
+    copyfile(filename, new_filename)
+    assert os.path.exists(new_filename)
+
+
 def read_dup_truth(filename='dup_truth.txt'):
 
     dup_truth = {}
