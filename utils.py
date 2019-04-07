@@ -14,6 +14,7 @@ chan_cv2_scale_map = {'H': 256, 'L': 256, 'S': 256}
 chan_gimp_scale_map = {'H': 360, 'L': 200, 'S': 100}
 
 
+# There are 24 distinct ways a $3\times3$ grid can overlap with another $3\times3$ grid.
 overlay_tag_pairs = {
     '0022': '0022',
     '0122': '0021',
@@ -73,7 +74,7 @@ overlay_tag_maps = {
 
 def generate_overlay_tag_slices():
 
-    # sd -> short for slice dictionary
+    # sd -> short for slice dictionary if that even means anything.
     sd = {
         '00': slice(None, 1*256),  # top row (left column)
         '01': slice(None, 2*256),  # top 2 rows (left 2 columns)
@@ -118,7 +119,17 @@ def generate_pair_tag_lookup():
     return ptl
 
 
-def get_datetime_now(t=None, fmt='%Y_%m%d_%H%M_%S'):
+def generate_overlay_tag_nines_mask():
+    overlay_tag_nines_mask = {}
+    for overlay_tag, overlay_map in overlay_tag_maps.items():
+        arr33 = np.zeros((3, 3), dtype=np.bool8)
+        for i, j in overlay_map:
+            arr33[i, j] = True
+        overlay_tag_nines_mask[overlay_tag] = arr33.reshape(-1)
+    return overlay_tag_nines_mask
+
+
+def get_datetime_now(t=None, fmt='%Y_%m%d_%H%M'):
     """Return timestamp as a string; default: current time, format: YYYY_DDMM_hhmm_ss."""
     if t is None:
         t = datetime.now()
@@ -244,57 +255,148 @@ def backup_file(filename):
     if not os.path.exists(filename):
         return
 
-    filebase, fileext = filename.rsplit('.')
+    filebase, fileext = filename.rsplit('.', maxsplit=1)
     new_filename = ''.join([filebase, "_", get_datetime_now(), ".", fileext])
     copyfile(filename, new_filename)
     assert os.path.exists(new_filename)
 
 
-def read_dup_truth(filename='dup_truth.txt'):
+def read_duplicate_truth(filename):
 
-    dup_truth = {}
+    duplicate_truth = {}
     if not os.path.exists(filename):
-        return dup_truth
+        return duplicate_truth
 
     with open(filename, 'r') as ifs:
         for line in ifs.readlines():
-            img_id1, img_id2, overlay_tag, is_dup = line.strip().split(' ')
-            if img_id1 > img_id2:
-                img_id1, img_id2 = img_id2, img_id1
+            img1_id, img2_id, overlay_tag, is_duplicate = line.strip().split(' ')
+            if img1_id > img2_id:
+                img1_id, img2_id = img2_id, img1_id
                 overlay_tag = overlay_tag_pairs[overlay_tag]
-            if (img_id1, img_id2, overlay_tag) in dup_truth:
+            if (img1_id, img2_id, overlay_tag) in duplicate_truth:
                 continue
-            dup_truth[(img_id1, img_id2, overlay_tag)] = int(is_dup)
+            duplicate_truth[(img1_id, img2_id, overlay_tag)] = int(is_duplicate)
 
-    return dup_truth
+    return duplicate_truth
 
 
-def write_dup_truth(dup_truth, filename='dup_truth.txt'):
+def write_duplicate_truth(duplicate_truth, filename):
 
     with open(filename, 'w') as ofs:
-        for (img_id1, img_id2, overlay_tag), is_dup in sorted(dup_truth.items(), key=lambda x: x[0][0]):
-            ofs.write(' '.join([img_id1, img_id2, overlay_tag, str(is_dup)]))
+        for (img1_id, img2_id, overlay_tag), is_duplicate in sorted(duplicate_truth.items(), key=lambda x: x[0][0]):
+            ofs.write(' '.join([img1_id, img2_id, overlay_tag, str(is_duplicate)]))
             ofs.write('\n')
 
 
-def update_dup_truth(update_dict, dup_truth=None, filename='dup_truth.txt'):
+def update_duplicate_truth(update_truth, filename, duplicate_truth=None):
 
     has_updated = False
-    if dup_truth is None:
-        dup_truth = read_dup_truth(filename=filename)
+    if duplicate_truth is None:
+        duplicate_truth = read_duplicate_truth(filename)
 
-    for (img_id1, img_id2, overlay_tag), is_dup in update_dict.items():
-        if img_id1 > img_id2:
-            img_id1, img_id2 = img_id2, img_id1
+    for (img1_id, img2_id, overlay_tag), is_duplicate in update_truth.items():
+        if img1_id > img2_id:
+            img1_id, img2_id = img2_id, img1_id
             overlay_tag = overlay_tag_pairs[overlay_tag]
-        if (img_id1, img_id2, overlay_tag) in dup_truth:
-            if dup_truth[(img_id1, img_id2, overlay_tag)] != is_dup:
-                raise ValueError(f"{img_id1} and {img_id2} cannot both be {dup_truth[(img_id1, img_id2, overlay_tag)]} and {is_dup}")
+        if (img1_id, img2_id, overlay_tag) in duplicate_truth:
+            if duplicate_truth[(img1_id, img2_id, overlay_tag)] != is_duplicate:
+                raise ValueError(f"{img1_id} and {img2_id} cannot both be {duplicate_truth[(img1_id, img2_id, overlay_tag)]} and {is_duplicate}")
             continue
-        dup_truth[(img_id1, img_id2, overlay_tag)] = is_dup
+        duplicate_truth[(img1_id, img2_id, overlay_tag)] = is_duplicate
         has_updated = True
 
     if has_updated:
         backup_file(filename)
-        write_dup_truth(dup_truth, filename=filename)
+        write_duplicate_truth(duplicate_truth, filename)
+
+def read_image_duplicate_tiles(filename):
+    """
+    filename format: img_id 011345666
+    dup_tiles format: {img_id: np.array([0, 1, 1, 3, 4, 5, 6, 6, 6])}
+    :param filename:
+    :return:
+    """
+    dup_tiles = {}
+    if not os.path.exists(filename):
+        return dup_tiles
+
+    with open(filename, 'r') as ifs:
+        for line in ifs.readlines():
+            img1_id, dup_tiles1 = line.strip().split(' ')
+            dup_tiles[img1_id] = np.array(list(map(int, dup_tiles1)))
+
+    return dup_tiles
+
+
+def write_image_duplicate_tiles(dup_tiles, filename):
+    """
+    dup_tiles format: {img_id: np.array([0, 1, 1, 3, 4, 5, 6, 6, 6])}
+    filename format: img_id 011345666
+
+    :param dup_tiles:
+    :param filename:
+    :return:
+    """
+    with open(filename, 'w') as ofs:
+        for img1_id, dup_tiles1 in sorted(dup_tiles.items()):
+            ofs.write(img1_id + ' ')
+            ofs.write(''.join(list(map(str, dup_tiles1))) + '\n')
+
+
+def read_image_image_duplicate_tiles(filename):
+    """
+    file format: img1_id img2_id 919399918 938918998
+    dup_tiles format: {(img1_id, img2_id): ((9, 1, 9, 3, 9, 9, 9, 1, 8), (9, 3, 8, 9, 1, 8, 9, 9, 8))}
+    :param filename:
+    :return:
+    """
+    dup_tiles = {}
+    if not os.path.exists(filename):
+        return dup_tiles
+
+    with open(filename, 'r') as ifs:
+        for line in ifs.readlines():
+            img1_id, img2_id, dup_tiles1, dup_tiles2 = line.strip().split(' ')
+            dup_tiles[(img1_id, img2_id)] = (np.array(list(map(int, dup_tiles1))), np.array(list(map(int, dup_tiles2))))
+
+    return dup_tiles
+
+
+def write_image_image_duplicate_tiles(dup_tiles, filename):
+    """
+    dup_tiles format: {(img1_id, img2_id): ((9, 1, 9, 3, 9, 9, 9, 1, 8), (9, 3, 8, 9, 1, 8, 9, 9, 8))}
+    file format: img1_id img2_id 919399918 938918998
+
+    :param dup_tiles:
+    :param filename:
+    :return:
+    """
+
+    with open(filename, 'w') as ofs:
+        for (img1_id, img2_id), (dup_tiles1, dup_tiles2) in sorted(dup_tiles.items()):
+            ofs.write(img1_id + ' ' + img2_id + ' ')
+            ofs.write(''.join([str(d) for d in dup_tiles1]) + ' ')
+            ofs.write(''.join([str(d) for d in dup_tiles2]) + '\n')
+
+
+def update_image_image_duplicate_tiles(update_tiles, filename, dup_tiles=None):
+    has_updated = False
+    if dup_tiles is None:
+        dup_tiles = read_image_image_duplicate_tiles(filename)
+
+    for (img1_id, img2_id), (dup_tiles1, dup_tiles2) in update_tiles.items():
+
+        if (img1_id, img2_id) in dup_tiles:
+            old_tiles1, old_tiles2 = dup_tiles[(img1_id, img2_id)]
+            if old_tiles1 != dup_tiles1:
+                raise ValueError(f"{img1_id}: old tiles vs. new tiles: {old_tiles1} != {dup_tiles1}")
+            if old_tiles2 != dup_tiles2:
+                raise ValueError(f"{img2_id}: old tiles vs. new tiles: {old_tiles2} != {dup_tiles2}")
+        else:
+            dup_tiles[(img1_id, img2_id)] = (dup_tiles1, dup_tiles2)
+            has_updated = True
+
+    if has_updated:
+        backup_file(filename)
+        write_image_image_duplicate_tiles(dup_tiles, filename)
 

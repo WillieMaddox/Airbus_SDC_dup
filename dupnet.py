@@ -39,7 +39,6 @@ def even_split(n_samples, batch_size, split):
 
 
 def create_loss_and_optimizer(model, learning_rate=0.001):
-    # TODO: Probably should change model to use CE instead of LR.
     # loss = nn.MSELoss()
     loss = nn.BCELoss()
     # loss = nn.BCEWithLogitsLoss()
@@ -116,9 +115,9 @@ class DupCNN(nn.Module):
         # Recall that the -1 infers this dimension from the other given dimension
         x = x.view(-1, 256 * 8 * 8)  # Size changes from (256, 8, 8) to (1, 16384)
 
-        # Computes the activation of the first fully connected layer
-        x = F.relu(self.fc1(x))  # Size changes from (1, 16384) to (1, 128)
+        x = self.fc1(x)  # Size changes from (1, 16384) to (1, 128)
+        x = F.relu(x)  # Computes the activation of the first fully connected layer
 
-        # Computes the activation of the second fully connected layer
-        x = torch.sigmoid(self.fc2(x))  # Size changes from (1, 128) to (1, 1)
+        x = self.fc2(x)  # Size changes from (1, 128) to (1, 1)
+        x = torch.sigmoid(x)  # Computes the activation of the second fully connected layer
         return x
