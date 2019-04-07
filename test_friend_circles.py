@@ -8,6 +8,7 @@ import cv2
 from cv2 import img_hash
 from collections import defaultdict
 from collections import Counter
+from utils import tile_idx2ij, tile_ij2idx
 from utils import normalized_hamming_distance
 from utils import generate_overlay_tag_slices
 from utils import generate_pair_tag_lookup
@@ -35,7 +36,7 @@ hash_algos = {
 }
 
 def gen_image_dup_dict():
-    return {tuple(tag): defaultdict(list) for tag in overlay_tag_maps['0022']}
+    return {idx: defaultdict(list) for idx in range(len(tile_ij2idx))}
 
 
 def gen_overlay_image_maps_dict():
@@ -150,15 +151,15 @@ class SDCImageContainer:
                 prev_md5hash_grid = np.zeros((self.n_rows, self.n_cols), dtype=self.tile_md5hash_dtype)
                 for i in range(self.n_rows):
                     for j in range(self.n_cols):
-                        tile = self.get_tile(img, i, j)
+                        tile = self.get_tile0(img, i, j)
                         # tile = np.delete(tile, self.tile_slice, axis=0)
                         # tile = np.delete(tile, self.tile_slice, axis=1)
                         prev_md5hash_grid[i, j] = hashlib.md5(tile.tobytes()).hexdigest()[:self.tile_md5hash_len]
 
-            tile_md5hash_grid = {}
-            for i in range(self.n_rows):
-                for j in range(self.n_cols):
-                    tile_md5hash_grid[(i, j)] = prev_md5hash_grid[i, j]
+            tile_md5hash_grid = [''] * self.n_tiles
+            for t1 in range(self.n_tiles):
+                i, j = tile_idx2ij[t1]
+                tile_md5hash_grid[t1] = prev_md5hash_grid[i, j]
 
             md5hash_records.append({'ImageId': img_id, 'md5hash_grid': prev_md5hash_grid})  # str
             self.tile_md5hash_grids[img_id] = tile_md5hash_grid
@@ -171,13 +172,13 @@ class SDCImageContainer:
                 prev_bm0hash_grid = np.zeros((self.n_rows, self.n_cols, self.tile_bm0hash_len), dtype=self.tile_bm0hash_dtype)
                 for i in range(self.n_rows):
                     for j in range(self.n_cols):
-                        tile = self.get_tile(img, i, j)
+                        tile = self.get_tile0(img, i, j)
                         prev_bm0hash_grid[i, j] = img_hash.blockMeanHash(tile, mode=0)[0]
 
-            tile_bm0hash_grid = {}
-            for i in range(self.n_rows):
-                for j in range(self.n_cols):
-                    tile_bm0hash_grid[(i, j)] = tuple(prev_bm0hash_grid[i, j])
+            tile_bm0hash_grid = [(0,)] * self.n_tiles
+            for t1 in range(self.n_tiles):
+                i, j = tile_idx2ij[t1]
+                tile_bm0hash_grid[t1] = tuple(prev_bm0hash_grid[i, j])
 
             bm0hash_records.append({'ImageId': img_id, 'bm0hash_grid': prev_bm0hash_grid})  # int
             self.tile_bm0hash_grids[img_id] = tile_bm0hash_grid
@@ -190,13 +191,13 @@ class SDCImageContainer:
                 prev_entropy_grid = np.zeros((self.n_rows, self.n_cols, 2), dtype=np.float)
                 for i in range(self.n_rows):
                     for j in range(self.n_cols):
-                        tile = self.get_tile(img, i, j)
+                        tile = self.get_tile0(img, i, j)
                         prev_entropy_grid[i, j] = get_entropy(tile)
 
-            tile_entropy_grid = {}
-            for i in range(self.n_rows):
-                for j in range(self.n_cols):
-                    tile_entropy_grid[(i, j)] = prev_entropy_grid[i, j]
+            tile_entropy_grid = [0] * self.n_tiles
+            for t1 in range(self.n_tiles):
+                i, j = tile_idx2ij[t1]
+                tile_entropy_grid[t1] = prev_entropy_grid[i, j]
 
             entropy_records.append({'ImageId': img_id, 'entropy_grid': prev_entropy_grid})  # int
             self.tile_entropy_grids[img_id] = tile_entropy_grid
@@ -209,14 +210,12 @@ class SDCImageContainer:
                     img = self.get_img(img_id)
                 prev_dup_tiles = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
                 for t1 in range(self.n_tiles):
-                    (i, j) = overlay_tag_maps['0022'][t1]
                     for t2 in range(self.n_tiles):
                         if t2 <= t1:
                             continue
-                        (k, l) = overlay_tag_maps['0022'][t2]
-                        if tile_md5hash_grid[(i, j)] != tile_md5hash_grid[(k, l)]:
+                        if tile_md5hash_grid[t1] != tile_md5hash_grid[t2]:
                             continue
-                        if np.all(self.get_tile(img, i, j) == self.get_tile(img, k, l)):
+                        if np.all(self.get_tile(img, t1) == self.get_tile(img, t2)):
                             prev_dup_tiles[t2] = min(prev_dup_tiles[t1], prev_dup_tiles[t2])
 
             duplicate_records[img_id] = prev_dup_tiles
@@ -260,7 +259,11 @@ class SDCImageContainer:
         path = self.train_image_dir if path is None else path
         return cv2.imread(os.path.join(path, filename))
 
-    def get_tile(self, img, i, j):
+    def get_tile0(self, img, i, j):
+        return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
+
+    def get_tile(self, img, idx):
+        i, j = tile_idx2ij[idx]
         return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
 
     def fuzzy_compare(self, tile1, tile2):
@@ -295,8 +298,10 @@ class SDCImageContainer:
         bmh1_list = []
         bmh2_list = []
         for ((i, j), (k, l)) in zip(overlay_map1, overlay_map2):
-            bmh1 = self.tile_bm0hash_grids[img1_id][(i, j)]
-            bmh2 = self.tile_bm0hash_grids[img2_id][(k, l)]
+            idx1 = tile_ij2idx[(i, j)]
+            idx2 = tile_ij2idx[(k, l)]
+            bmh1 = self.tile_bm0hash_grids[img1_id][idx1]
+            bmh2 = self.tile_bm0hash_grids[img2_id][idx2]
             bmh1_list.append(bmh1)
             bmh2_list.append(bmh2)
         bmh1_arr = np.vstack(bmh1_list)
@@ -309,8 +314,10 @@ class SDCImageContainer:
         overlay_map2 = overlay_tag_maps[overlay_tag_pairs[overlay_tag]]
         scores = []
         for ((i, j), (k, l)) in zip(overlay_map1, overlay_map2):
-            bmh1 = self.tile_bm0hash_grids[img1_id][(i, j)]
-            bmh2 = self.tile_bm0hash_grids[img2_id][(k, l)]
+            idx1 = tile_ij2idx[(i, j)]
+            idx2 = tile_ij2idx[(k, l)]
+            bmh1 = self.tile_bm0hash_grids[img1_id][idx1]
+            bmh2 = self.tile_bm0hash_grids[img2_id][idx2]
             score = self.fuzzy_compare(bmh1, bmh2)
             scores.append(score)
         return scores
@@ -320,17 +327,17 @@ class SDCImageContainer:
         overlay_64321_tags = {tag for tag, tiles in overlay_tag_maps.items() if len(tiles) in (overlap_level,)}  # should pass as arg
 
         for i, img1_id in enumerate(img_list):
-            tiles1 = [key for key, value in self.tile_bm0hash_grids[img1_id].items() if value == hash_id]
+            tiles1 = [idx for idx, bm0hash in enumerate(self.tile_bm0hash_grids[img1_id]) if bm0hash == hash_id]
             for j, img2_id in enumerate(img_list):
                 if j >= i:
                     continue
-                tiles2 = [key for key, value in self.tile_bm0hash_grids[img2_id].items() if value == hash_id]
+                tiles2 = [idx for idx, bm0hash in enumerate(self.tile_bm0hash_grids[img2_id]) if bm0hash == hash_id]
 
                 # create a set of valid overlay_tags based on matching tiles between images.
                 overlay_tags = set()
-                for tile1 in tiles1:
-                    for tile2 in tiles2:
-                        pair_key = tuple([tuple(tile1), tuple(tile2)])
+                for t1 in tiles1:
+                    for t2 in tiles2:
+                        pair_key = (t1, t2)
                         overlay_tags.add(pair_tag_lookup.get(pair_key))
 
                 overlay_tags.intersection_update(overlay_64321_tags)
@@ -486,16 +493,14 @@ class SDCImageContainer:
 
         is_updated = False
         for t1 in dup_cts1:
-            (i, j) = overlay_tag_maps['0022'][t1]
             for t2 in dup_cts2:
-                (k, l) = overlay_tag_maps['0022'][t2]
-                if self.tile_bm0hash_grids[img1_id][(i, j)] != self.tile_bm0hash_grids[img2_id][(k, l)]:
+                if self.tile_bm0hash_grids[img1_id][t1] != self.tile_bm0hash_grids[img2_id][t2]:
                     continue
                 if img1 is None:
                     img1 = self.get_img(img1_id)
                 if img2 is None:
                     img2 = self.get_img(img2_id)
-                if np.any(self.get_tile(img1, i, j) != self.get_tile(img2, k, l)):
+                if np.any(self.get_tile(img1, t1) != self.get_tile(img2, t2)):
                     continue
 
                 dup_tiles1[dup_idx1[t1]] = t1
@@ -635,8 +640,6 @@ class SDCImage:
 
         self.overlay_image_maps[tag][other_sdc.img_id] = {'overlay_score': overlay_score, 'tile_scores': tile_scores}
 
-        overlay_map_counter[tag] += 1
-
 
 def main():
     ship_dir = "data/input"
@@ -712,7 +715,6 @@ def main():
 
     if len(updated_image_image_duplicate_tiles) > 0:
         update_image_image_duplicate_tiles(updated_image_image_duplicate_tiles, image_image_duplicate_tiles_file)
-    print(overlay_map_counter)
 
 
 if __name__ == '__main__':

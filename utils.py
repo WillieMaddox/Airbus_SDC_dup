@@ -15,6 +15,20 @@ chan_gimp_scale_map = {'H': 360, 'L': 200, 'S': 100}
 
 
 # There are 24 distinct ways a $3\times3$ grid can overlap with another $3\times3$ grid.
+
+tile_idx2ij = {
+    0: (0, 0),
+    1: (0, 1),
+    2: (0, 2),
+    3: (1, 0),
+    4: (1, 1),
+    5: (1, 2),
+    6: (2, 0),
+    7: (2, 1),
+    8: (2, 2)}
+
+tile_ij2idx = {val: key for key, val in tile_idx2ij.items()}
+
 overlay_tag_pairs = {
     '0022': '0022',
     '0122': '0021',
@@ -114,8 +128,9 @@ def generate_pair_tag_lookup():
     ptl = {}
     for tag1, tag2 in overlay_tag_pairs.items():
         for pair in zip(overlay_tag_maps[tag1], overlay_tag_maps[tag2]):
-            pair_key = tuple([tuple(pair[0]), tuple(pair[1])])
-            ptl[pair_key] = tag1
+            idx1 = tile_ij2idx[tuple(pair[0])]
+            idx2 = tile_ij2idx[tuple(pair[1])]
+            ptl[(idx1, idx2)] = tag1
     return ptl
 
 
@@ -197,7 +212,8 @@ def get_best_model_name(run_dir):
     return best_model_filename
 
 
-def get_tile(img, i, j, sz=256):
+def get_tile(img, idx, sz=256):
+    i, j = tile_idx2ij[idx]
     return img[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
 
 
