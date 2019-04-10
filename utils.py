@@ -16,18 +16,12 @@ chan_gimp_scale_map = {'H': 360, 'L': 200, 'S': 100}
 
 # There are 24 distinct ways a $3\times3$ grid can overlap with another $3\times3$ grid.
 
-tile_idx2ij = {
-    0: (0, 0),
-    1: (0, 1),
-    2: (0, 2),
-    3: (1, 0),
-    4: (1, 1),
-    5: (1, 2),
-    6: (2, 0),
-    7: (2, 1),
-    8: (2, 2)}
+ij_pairs_3x3 = [(0, 0), (0, 1), (0, 2),
+                (1, 0), (1, 1), (1, 2),
+                (2, 0), (2, 1), (2, 2)]
 
-tile_ij2idx = {val: key for key, val in tile_idx2ij.items()}
+tile_idx2ij = {idx: ij for idx, ij in enumerate(ij_pairs_3x3)}
+tile_ij2idx = {ij: idx for idx, ij in enumerate(ij_pairs_3x3)}
 
 overlay_tag_pairs = {
     '0022': '0022',
@@ -142,6 +136,16 @@ def generate_overlay_tag_nines_mask():
             arr33[i, j] = True
         overlay_tag_nines_mask[overlay_tag] = arr33.reshape(-1)
     return overlay_tag_nines_mask
+
+
+def generate_overlay_tag_maps_1d():
+    overlay_tag_maps_1d = {}
+    for overlay_tag, overlay_map in overlay_tag_maps.items():
+        vec = np.zeros(len(overlay_map), dtype=np.uint8)
+        for x, (i, j) in enumerate(overlay_map):
+            vec[x] = i * 3 + j
+        overlay_tag_maps_1d[overlay_tag] = vec
+    return overlay_tag_maps_1d
 
 
 def get_datetime_now(t=None, fmt='%Y_%m%d_%H%M'):
