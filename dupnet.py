@@ -25,19 +25,6 @@ def load_checkpoint(filepath):
     return model
 
 
-def even_split(n_samples, batch_size, split):
-    # Hack until I can figure out how to ragged end of the database.
-    train_percent = split / 100.
-    train_pivot = int(n_samples * train_percent)
-    n_train = train_pivot - train_pivot % batch_size
-
-    valid_percent = 1. - train_percent
-    valid_pivot = int(n_samples * valid_percent)
-    n_valid = valid_pivot - valid_pivot % batch_size
-
-    return n_train, n_valid
-
-
 def create_loss_and_optimizer(model, learning_rate=0.001):
     # loss = nn.MSELoss()
     loss = nn.BCELoss()
