@@ -66,8 +66,8 @@ def filter_duplicates(img_ids):
 
 
 def get_channel_entropy(ctr, img_size):
-    ctr_norm = {k: v/img_size for k, v in ctr.items()}
-    ctr_entropy = {k: -v*np.log(v) for k, v in ctr_norm.items()}
+    ctr_norm = {k: v / img_size for k, v in ctr.items()}
+    ctr_entropy = {k: -v * np.log(v) for k, v in ctr_norm.items()}
     entropy = np.sum([k * v for k, v in ctr_entropy.items()])
     return entropy
 
@@ -88,11 +88,11 @@ class SDCImageContainer:
         super().__init__(**kwargs)
         self.train_image_dir = train_image_dir
         self.h5_file = train_image_dir + '.h5'
-        self.tile_score_max = self.sz * self.sz * 3 * 255
         self.sz = 256  # tile_size
         self.n_rows = 3
         self.n_cols = 3
         self.n_tiles = self.n_rows * self.n_cols
+        self.tile_score_max = self.sz * self.sz * 3 * 255  # 3 color channels, uint8
         self.tile_slice = slice(8, -8)
         self.tile_md5hash_len = 8
         self.tile_md5hash_dtype = f'<U{self.tile_md5hash_len}'

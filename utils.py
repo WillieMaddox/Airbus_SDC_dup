@@ -434,3 +434,26 @@ def even_split(n_samples, batch_size, split):
     return n_train, n_valid
 
 
+def create_dataset_from_tiles_and_truth(dup_tiles, dup_truth):
+    overlay_tag_maps_1d = generate_overlay_tag_maps_1d()
+
+    overlay_tag_maps0 = {}
+    for overlay_tag1, overlay_map1 in overlay_tag_maps_1d.items():
+        overlay_map2 = overlay_tag_maps_1d[overlay_tag_pairs[overlay_tag1]]
+        overlay_tag_maps0[overlay_tag1] = list(zip(overlay_map1, overlay_map2))
+
+    used_ids = set()
+    img_overlay_pairs = {}
+    for (img1_id, img2_id, overlay_tag1), is_dup in dup_truth.items():
+        if is_dup:
+            img_overlay_pairs[(img1_id, img2_id, overlay_tag1)] = overlay_tag_maps0[overlay_tag1]
+            used_ids.add(img1_id)
+            used_ids.add(img2_id)
+
+    for img_id, dup_vector in dup_tiles.items():
+        if img_id in used_ids:
+            continue
+        if dup_vector.sum() == 36:  # if dup_vector == [0,1,2,3,4,5,6,7,8], all tiles are unique.
+            img_overlay_pairs[(img_id, img_id, '0022')] = overlay_tag_maps0['0022']
+
+    return img_overlay_pairs
