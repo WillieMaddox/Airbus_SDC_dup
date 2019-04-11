@@ -181,16 +181,19 @@ def bce(y_true, y_pred, **kwargs):
     return np.mean(out, axis=-1)
 
 
+def pad_string(x, n):
+    padding = n - len(x)
+    x_new = x if padding <= 0 else ''.join(['0' * padding, x])
+    return x_new
+
+
 def hex_to_int(hash_hex):
     return int(hash_hex, 16)
 
 
 def int_to_hex(hash_int, hash_len):
     hash_hex = hex(hash_int)[2:]
-    padding = hash_len - len(hash_hex)
-    if padding > 0:
-        hash_hex = ''.join(['0' * padding, hash_hex])
-    return hash_hex
+    return pad_string(hash_hex, hash_len)
 
 
 def normalized_hamming_distance(hash1, hash2):
@@ -271,12 +274,17 @@ def channel_shift(img, chan, val):
     return scaled_img
 
 
-def backup_file(filename):
+def backup_file(filename, backup_str=None):
+
     if not os.path.exists(filename):
         return
+    if backup_str is None:
+        backup_str = get_datetime_now()
+    else:
+        assert type(backup_str) == str
 
     filebase, fileext = filename.rsplit('.', maxsplit=1)
-    new_filename = ''.join([filebase, "_", get_datetime_now(), ".", fileext])
+    new_filename = ''.join([filebase, "_", backup_str, ".", fileext])
     copyfile(filename, new_filename)
     assert os.path.exists(new_filename)
 
@@ -308,13 +316,13 @@ def write_duplicate_truth(duplicate_truth, filename):
             ofs.write('\n')
 
 
-def update_duplicate_truth(update_truth, filename, duplicate_truth=None):
+def update_duplicate_truth(new_truth, filename):
 
     has_updated = False
-    if duplicate_truth is None:
-        duplicate_truth = read_duplicate_truth(filename)
+    duplicate_truth = read_duplicate_truth(filename)
+    n_lines_in_original = len(duplicate_truth)
 
-    for (img1_id, img2_id, overlay_tag), is_duplicate in update_truth.items():
+    for (img1_id, img2_id, overlay_tag), is_duplicate in new_truth.items():
         if img1_id > img2_id:
             img1_id, img2_id = img2_id, img1_id
             overlay_tag = overlay_tag_pairs[overlay_tag]
@@ -326,7 +334,8 @@ def update_duplicate_truth(update_truth, filename, duplicate_truth=None):
         has_updated = True
 
     if has_updated:
-        backup_file(filename)
+        backup_str = pad_string(str(n_lines_in_original), 8)
+        backup_file(filename, backup_str)
         write_duplicate_truth(duplicate_truth, filename)
 
 def read_image_duplicate_tiles(filename):
