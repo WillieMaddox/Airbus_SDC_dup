@@ -35,6 +35,7 @@ hash_algos = {
     # 'radialVarianceHash': img_hash.radialVarianceHash
 }
 
+
 def gen_image_dup_dict():
     return {idx: defaultdict(list) for idx in range(len(tile_ij2idx))}
 
@@ -111,6 +112,7 @@ class SDCImageContainer:
         self.minimum_score_threshold = 0.95  # overlay score has to be at least this good before assigning it to an image
         self.best_score_threshold = 0.99  # after this, don't have to check if better score exists.
         self.matches = defaultdict(list)
+
     def load_3x3_grids(self, filename_md5hash, filename_bm0hash, filename_entropy, filename_tile_dups):
         img_md5hash_grids = {}
         if os.path.exists(filename_md5hash):
@@ -397,8 +399,6 @@ class SDCImageContainer:
             return
 
         self.matches[(img1_id, img2_id)].append((overlay_tag1, overlay_score, tile_scores))
-
-
 
     def update_overlay_maps(self, img1_id, img2_id, overlay_tag1, overlay_score=None, tile_scores=None):
 

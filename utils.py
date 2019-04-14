@@ -338,6 +338,7 @@ def update_duplicate_truth(new_truth, filename):
         backup_file(filename, backup_str)
         write_duplicate_truth(duplicate_truth, filename)
 
+
 def read_image_duplicate_tiles(filename):
     """
     filename format: img_id 011345666
