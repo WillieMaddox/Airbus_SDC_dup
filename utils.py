@@ -308,7 +308,7 @@ def read_duplicate_truth(filename):
     return duplicate_truth
 
 
-def write_duplicate_truth(duplicate_truth, filename):
+def write_duplicate_truth(filename, duplicate_truth):
 
     with open(filename, 'w') as ofs:
         for (img1_id, img2_id, overlay_tag), is_duplicate in sorted(duplicate_truth.items()):
@@ -316,7 +316,7 @@ def write_duplicate_truth(duplicate_truth, filename):
             ofs.write('\n')
 
 
-def update_duplicate_truth(new_truth, filename):
+def update_duplicate_truth(filename, new_truth):
 
     has_updated = False
     duplicate_truth = read_duplicate_truth(filename)
@@ -336,7 +336,7 @@ def update_duplicate_truth(new_truth, filename):
     if has_updated:
         backup_str = pad_string(str(n_lines_in_original), 8)
         backup_file(filename, backup_str)
-        write_duplicate_truth(duplicate_truth, filename)
+        write_duplicate_truth(filename, duplicate_truth)
 
 
 def read_image_duplicate_tiles(filename):
@@ -358,7 +358,7 @@ def read_image_duplicate_tiles(filename):
     return dup_tiles
 
 
-def write_image_duplicate_tiles(dup_tiles, filename):
+def write_image_duplicate_tiles(filename, dup_tiles):
     """
     dup_tiles format: {img_id: np.array([0, 1, 1, 3, 4, 5, 6, 6, 6])}
     filename format: img_id 011345666
@@ -392,7 +392,7 @@ def read_image_image_duplicate_tiles(filename):
     return dup_tiles
 
 
-def write_image_image_duplicate_tiles(dup_tiles, filename):
+def write_image_image_duplicate_tiles(filename, dup_tiles):
     """
     dup_tiles format: {(img1_id, img2_id): ((9, 1, 9, 3, 9, 9, 9, 1, 8), (9, 3, 8, 9, 1, 8, 9, 9, 8))}
     file format: img1_id img2_id 919399918 938918998
@@ -409,7 +409,7 @@ def write_image_image_duplicate_tiles(dup_tiles, filename):
             ofs.write(''.join([str(d) for d in dup_tiles2]) + '\n')
 
 
-def update_image_image_duplicate_tiles(new_tiles, filename):
+def update_image_image_duplicate_tiles(filename, new_tiles):
     has_updated = False
     duplicate_tiles = read_image_image_duplicate_tiles(filename)
     n_lines_in_original = len(duplicate_tiles)
@@ -428,7 +428,7 @@ def update_image_image_duplicate_tiles(new_tiles, filename):
     if has_updated:
         backup_str = pad_string(str(n_lines_in_original), 8)
         backup_file(filename, backup_str)
-        write_image_image_duplicate_tiles(duplicate_tiles, filename)
+        write_image_image_duplicate_tiles(filename, duplicate_tiles)
 
 
 def even_split(n_samples, batch_size, split):

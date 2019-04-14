@@ -239,7 +239,7 @@ class SDCImageContainer:
                 ee = 0
 
             if dd >= 5000:
-                write_image_duplicate_tiles(duplicate_records, filename_tile_dups)
+                write_image_duplicate_tiles(filename_tile_dups, duplicate_records)
                 dd = 0
 
         if mm > 0:
@@ -255,7 +255,7 @@ class SDCImageContainer:
             df.to_pickle(filename_entropy)
 
         if dd > 0:
-            write_image_duplicate_tiles(duplicate_records, filename_tile_dups)
+            write_image_duplicate_tiles(filename_tile_dups, duplicate_records)
 
     def get_img(self, filename, path=None):
         path = self.train_image_dir if path is None else path
@@ -714,7 +714,7 @@ def main():
             updated_image_image_duplicate_tiles[img_id12] = sdcic.image_image_duplicate_tiles[img_id12]
 
     if len(updated_image_image_duplicate_tiles) > 0:
-        update_image_image_duplicate_tiles(updated_image_image_duplicate_tiles, image_image_duplicate_tiles_file)
+        update_image_image_duplicate_tiles(image_image_duplicate_tiles_file, updated_image_image_duplicate_tiles)
 
 
 if __name__ == '__main__':
