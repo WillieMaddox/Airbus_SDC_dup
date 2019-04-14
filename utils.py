@@ -311,7 +311,7 @@ def read_duplicate_truth(filename):
 def write_duplicate_truth(duplicate_truth, filename):
 
     with open(filename, 'w') as ofs:
-        for (img1_id, img2_id, overlay_tag), is_duplicate in sorted(duplicate_truth.items(), key=lambda x: x[0][0]):
+        for (img1_id, img2_id, overlay_tag), is_duplicate in sorted(duplicate_truth.items()):
             ofs.write(' '.join([img1_id, img2_id, overlay_tag, str(is_duplicate)]))
             ofs.write('\n')
 
