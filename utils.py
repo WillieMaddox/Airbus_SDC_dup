@@ -409,26 +409,26 @@ def write_image_image_duplicate_tiles(dup_tiles, filename):
             ofs.write(''.join([str(d) for d in dup_tiles2]) + '\n')
 
 
-def update_image_image_duplicate_tiles(update_tiles, filename, dup_tiles=None):
+def update_image_image_duplicate_tiles(new_tiles, filename):
     has_updated = False
-    if dup_tiles is None:
-        dup_tiles = read_image_image_duplicate_tiles(filename)
+    duplicate_tiles = read_image_image_duplicate_tiles(filename)
+    n_lines_in_original = len(duplicate_tiles)
+    for (img1_id, img2_id), (dup_tiles1, dup_tiles2) in new_tiles.items():
 
-    for (img1_id, img2_id), (dup_tiles1, dup_tiles2) in update_tiles.items():
-
-        if (img1_id, img2_id) in dup_tiles:
-            old_tiles1, old_tiles2 = dup_tiles[(img1_id, img2_id)]
+        if (img1_id, img2_id) in duplicate_tiles:
+            old_tiles1, old_tiles2 = duplicate_tiles[(img1_id, img2_id)]
             if old_tiles1 != dup_tiles1:
                 raise ValueError(f"{img1_id}: old tiles vs. new tiles: {old_tiles1} != {dup_tiles1}")
             if old_tiles2 != dup_tiles2:
                 raise ValueError(f"{img2_id}: old tiles vs. new tiles: {old_tiles2} != {dup_tiles2}")
         else:
-            dup_tiles[(img1_id, img2_id)] = (dup_tiles1, dup_tiles2)
+            duplicate_tiles[(img1_id, img2_id)] = (dup_tiles1, dup_tiles2)
             has_updated = True
 
     if has_updated:
-        backup_file(filename)
-        write_image_image_duplicate_tiles(dup_tiles, filename)
+        backup_str = pad_string(str(n_lines_in_original), 8)
+        backup_file(filename, backup_str)
+        write_image_image_duplicate_tiles(duplicate_tiles, filename)
 
 
 def even_split(n_samples, batch_size, split):
