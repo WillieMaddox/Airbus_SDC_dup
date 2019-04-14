@@ -670,7 +670,7 @@ def main():
 
         hash_dict = defaultdict(set)
         for img_id in tqdm(img_ids):
-            for h in sdcic.tile_bm0hash_grids[img_id].values():
+            for h in sdcic.tile_bm0hash_grids[img_id]:
                 hash_dict[h].add(img_id)
 
         sorted_hash_dict = {}
