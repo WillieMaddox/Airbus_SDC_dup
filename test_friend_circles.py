@@ -79,6 +79,7 @@ class SDCImageContainer:
         self.n_tiles = self.n_rows * self.n_cols
         self.tile_score_max = self.sz * self.sz * 3 * 255  # 3 color channels, uint8
         self.tile_slice = slice(8, -8)
+        self.tile_counter_grids = {}
         self.tile_md5hash_len = 8
         self.tile_md5hash_dtype = f'<U{self.tile_md5hash_len}'
         self.tile_md5hash_grids = {}
@@ -95,7 +96,12 @@ class SDCImageContainer:
         self.best_score_threshold = 0.99  # after this, don't have to check if better score exists.
         self.matches = defaultdict(list)
 
-    def load_3x3_grids(self, filename_md5hash, filename_bm0hash, filename_entropy, filename_tile_dups):
+    def load_3x3_grids(self, filename_counter, filename_md5hash, filename_bm0hash, filename_entropy, filename_tile_dups):
+        img_counter_grids = {}
+        if os.path.exists(filename_counter):
+            df = pd.read_pickle(filename_counter)
+            img_counter_grids = {key: val for key, val in df.to_dict('split')['data']}
+
         img_md5hash_grids = {}
         if os.path.exists(filename_md5hash):
             df = pd.read_pickle(filename_md5hash)
@@ -113,11 +119,13 @@ class SDCImageContainer:
 
         img_dups_vec = read_image_duplicate_tiles(filename_tile_dups)
 
+        cc = 0
         mm = 0
         hh = 0
         ee = 0
         dd = 0
 
+        counter_records = []
         md5hash_records = []
         bm0hash_records = []
         entropy_records = []
@@ -128,10 +136,27 @@ class SDCImageContainer:
 
             img = None
 
+            prev_counter_grid = img_counter_grids.get(img_id)
+            if prev_counter_grid is None:
+                cc += 1
+                img = self.get_img(img_id)
+                prev_counter_grid = np.zeros((self.n_tiles, 3, 2), dtype=np.int64)
+                for t1 in range(self.n_tiles):
+                    tile = self.get_tile(img, t1)
+                    for chan in range(3):
+                        unique, counts = np.unique(tile[:, :, chan].flatten(), return_counts=True)
+                        max_idx = np.argmax(counts)
+                        prev_counter_grid[t1, chan] = np.array([unique[max_idx], counts[max_idx]])
+
+            tile_counter_grid = [tuple(tuple(pcg) for pcg in prev_counter_grid[t1]) for t1 in range(self.n_tiles)]
+
+            counter_records.append({'ImageId': img_id, 'counter_grid': prev_counter_grid})  # int
+            self.tile_counter_grids[img_id] = tile_counter_grid
+
             tile_md5hash_grid = img_md5hash_grids.get(img_id)
             if tile_md5hash_grid is None:
                 mm += 1
-                img = self.get_img(img_id)
+                img = self.get_img(img_id) if img is None else img
                 tile_md5hash_grid = np.zeros(self.n_tiles, dtype=self.tile_md5hash_dtype)
                 for t1 in range(self.n_tiles):
                     tile = self.get_tile(img, t1)
@@ -185,6 +210,10 @@ class SDCImageContainer:
             duplicate_records[img_id] = tile_dups_vec
             self.image_duplicate_tiles[img_id] = tile_dups_vec
 
+            if cc >= 5000:
+                df = pd.DataFrame().append(counter_records)
+                df.to_pickle(filename_counter)
+                cc = 0
 
             if mm >= 5000:
                 df = pd.DataFrame().append(md5hash_records)
@@ -204,6 +233,10 @@ class SDCImageContainer:
             if dd >= 5000:
                 write_image_duplicate_tiles(filename_tile_dups, duplicate_records)
                 dd = 0
+
+        if cc > 0:
+            df = pd.DataFrame().append(counter_records)
+            df.to_pickle(filename_counter)
 
         if mm > 0:
             df = pd.DataFrame().append(md5hash_records)
@@ -581,6 +614,7 @@ class SDCImage:
 def main():
     ship_dir = "data/input"
     train_image_dir = os.path.join(ship_dir, 'train_768')
+    image_counter_grids_file = os.path.join("data", "image_counter_grids.pkl")
     image_md5hash_grids_file = os.path.join("data", "image_md5hash_grids.pkl")
     image_bm0hash_grids_file = os.path.join("data", "image_bm0hash_grids.pkl")
     image_entropy_grids_file = os.path.join("data", "image_entropy_grids.pkl")
@@ -589,6 +623,7 @@ def main():
 
     sdcic = SDCImageContainer(train_image_dir)
     sdcic.load_3x3_grids(
+        image_counter_grids_file,
         image_md5hash_grids_file,
         image_bm0hash_grids_file,
         image_entropy_grids_file,
