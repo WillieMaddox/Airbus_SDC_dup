@@ -90,6 +90,7 @@ class SDCImageContainer:
         self.image_image_duplicate_tiles = {}
         self.image_image_duplicate_tiles_orig = {}
         self.overlay_image_maps = {}
+        self.overlay_pixel_scores = {}
         self.minimum_score_threshold = 0.95  # overlay score has to be at least this good before assigning it to an image
         self.best_score_threshold = 0.99  # after this, don't have to check if better score exists.
         self.matches = defaultdict(list)
@@ -382,7 +383,7 @@ class SDCImageContainer:
 
         self.matches[(img1_id, img2_id)].append((img1_overlay_tag, overlay_score, tile_scores))
 
-    def update_overlay_maps(self, img1_id, img2_id, img1_overlay_tag, overlay_score=None, tile_scores=None):
+    def update_overlay_maps(self, img1_id, img2_id, img1_overlay_tag, overlay_score=None, tile_scores=None, pixel_scores=None, entropy_score=None):
 
         overlay_score = overlay_score or self.get_overlay_score(img1_id, img2_id, img1_overlay_tag)
         if overlay_score < self.minimum_score_threshold:
@@ -395,7 +396,7 @@ class SDCImageContainer:
 
         if (img1_id, img2_id) not in self.overlay_image_maps:
             self.overlay_image_maps[(img1_id, img2_id)] = {}
-        self.overlay_image_maps[(img1_id, img2_id)][img1_overlay_tag] = (overlay_score, tile_scores)
+        self.overlay_image_maps[(img1_id, img2_id)][img1_overlay_tag] = (overlay_score, tile_scores, pixel_scores, entropy_score)
 
     def update_image_image_duplicate_tiles(self, img1_id, img2_id):
         """
@@ -546,6 +547,8 @@ class SDCImage:
             for i in range(3):
                 for j in range(3):
                     tile = self.get_tile(img, i, j)
+                    # tile = np.delete(tile, self.tile_slice, axis=0)
+                    # tile = np.delete(tile, self.tile_slice, axis=1)
                     self._tile_bm0hash_grid[(i, j)] = img_hash.blockMeanHash(tile, mode=0)
         return self._tile_bm0hash_grid
 
@@ -597,6 +600,7 @@ def main():
     n_matching_tiles = 3  # 15:43 minutes
     # n_matching_tiles = 2  # 26:27 minutes
     overlay_matches_file = os.path.join("data", f"overlay_matches_{n_matching_tiles}.pkl")
+    overlay_pixel_scores_file = os.path.join("data", f"overlay_pixel_scores_{n_matching_tiles}.pkl")
 
     if not os.path.exists(overlay_matches_file):
 
@@ -623,6 +627,7 @@ def main():
         for key, values in sdcic.matches.items():
             for row in values:
                 matches_list.append((key[0], key[1], row[0], row[1], *row[2]))
+
         df = pd.DataFrame(matches_list)
         df.to_pickle(overlay_matches_file)
 
@@ -631,6 +636,39 @@ def main():
         df = pd.read_pickle(overlay_matches_file)
         for row in tqdm(df.to_dict('split')['data']):
             sdcic.matches[(row[0], row[1])].append((row[2], row[3], row[4:]))
+
+    if not os.path.exists(overlay_pixel_scores_file):
+
+        img1_id_old = None
+        image_cache = {}
+        overlay_pixel_scores_list = []
+        for (img1_id, img2_id), values in tqdm(sorted(sdcic.matches.items())):
+
+            img1_overlay_tags = set([v[0] for v in values])
+            img1 = image_cache.setdefault(img1_id, sdcic.get_img(img1_id))
+            img2 = image_cache.setdefault(img2_id, sdcic.get_img(img2_id))
+
+            for img1_overlay_tag in img1_overlay_tags:
+                pixel_scores = sdcic.get_pixel_scores(img1, img2, img1_overlay_tag)
+                overlay_pixel_scores_list.append((img1_id, img2_id, img1_overlay_tag, *pixel_scores))
+
+            if img1_id_old is None:
+                img1_id_old = img1_id
+            if img1_id > img1_id_old:
+                del image_cache[img1_id_old]
+                img1_id_old = img1_id
+            if len(image_cache) > 20000:
+                image_cache = {}
+                img1_id_old = None
+
+        df = pd.DataFrame(overlay_pixel_scores_list)
+        df.to_pickle(overlay_pixel_scores_file)
+
+    else:
+
+        df = pd.read_pickle(overlay_pixel_scores_file)
+        for row in tqdm(df.to_dict('split')['data']):
+            sdcic.overlay_pixel_scores[(row[0], row[1])].append((row[2], row[3:]))
 
     sdcic.image_image_duplicate_tiles = read_image_image_duplicate_tiles(image_image_duplicate_tiles_file)
 
