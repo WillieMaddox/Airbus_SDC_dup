@@ -59,11 +59,11 @@ def get_channel_entropy(ctr, img_size):
 
 def get_entropy(img):
     img_grad = np.gradient(img.astype(np.int), axis=(0, 1))
-    entropy_vec = []
+    entropy_list = []
     for channel_grad in img_grad:
         ctr = Counter(np.abs(channel_grad).flatten())
-        entropy_vec.append(get_channel_entropy(ctr, img.size))
-    return np.array(entropy_vec)
+        entropy_list.append(get_channel_entropy(ctr, img.size))
+    return np.array(entropy_list)
 
 
 class SDCImageContainer:
