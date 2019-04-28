@@ -40,22 +40,6 @@ def gen_image_dup_dict():
     return {idx: defaultdict(list) for idx in range(len(tile_ij2idx))}
 
 
-def gen_overlay_image_maps_dict():
-    return {tag: defaultdict(str) for tag in overlay_tag_maps}
-
-
-def gen_overlay_image_names_dict():
-    return {tag: '' for tag in overlay_tag_maps}
-
-
-def gen_overlay_image_scores_dict():
-    return {tag: 0.0 for tag in overlay_tag_maps}
-
-
-def gen_overlay_tile_scores_dict():
-    return np.zeros((3, 3, 3, 3), dtype=np.float64)
-
-
 def filter_duplicates(img_ids):
     df = pd.read_csv('dup_blacklist_6.csv')
     blacklist = []
@@ -106,9 +90,6 @@ class SDCImageContainer:
         self.image_image_duplicate_tiles = {}
         self.image_image_duplicate_tiles_orig = {}
         self.overlay_image_maps = {}
-        self.overlay_image_names = {}
-        self.overlay_image_scores = {}
-        self.overlay_tile_scores = {}
         self.minimum_score_threshold = 0.95  # overlay score has to be at least this good before assigning it to an image
         self.best_score_threshold = 0.99  # after this, don't have to check if better score exists.
         self.matches = defaultdict(list)
@@ -270,10 +251,10 @@ class SDCImageContainer:
 
     def fuzzy_compare(self, tile1, tile2):
         maxab = np.max(np.stack([tile1, tile2]), axis=0)
-        n = np.prod(maxab.shape)
         a = maxab - tile2
         b = maxab - tile1
         ab = a + b
+        n = np.prod(maxab.shape)
         return np.sum(255 - ab) / (255 * n)
 
     def check_exact_match(self, img1, img2, overlay_tag):
@@ -388,80 +369,32 @@ class SDCImageContainer:
 
         return
 
-    def update_overlay_matches(self, img1_id, img2_id, overlay_tag1):
+    def update_overlay_matches(self, img1_id, img2_id, img1_overlay_tag):
 
-        overlay_score = self.get_overlay_score(img1_id, img2_id, overlay_tag1)
+        overlay_score = self.get_overlay_score(img1_id, img2_id, img1_overlay_tag)
         if overlay_score < self.minimum_score_threshold:
             return
 
-        tile_scores = self.get_tile_scores(img1_id, img2_id, overlay_tag1)
+        tile_scores = self.get_tile_scores(img1_id, img2_id, img1_overlay_tag)
         if min(tile_scores) < self.minimum_score_threshold:
             return
 
-        self.matches[(img1_id, img2_id)].append((overlay_tag1, overlay_score, tile_scores))
+        self.matches[(img1_id, img2_id)].append((img1_overlay_tag, overlay_score, tile_scores))
 
-    def update_overlay_maps(self, img1_id, img2_id, overlay_tag1, overlay_score=None, tile_scores=None):
+    def update_overlay_maps(self, img1_id, img2_id, img1_overlay_tag, overlay_score=None, tile_scores=None):
 
-        overlay_score = overlay_score or self.get_overlay_score(img1_id, img2_id, overlay_tag1)
+        overlay_score = overlay_score or self.get_overlay_score(img1_id, img2_id, img1_overlay_tag)
         if overlay_score < self.minimum_score_threshold:
             return
 
-        tile_scores = tile_scores or self.get_tile_scores(img1_id, img2_id, overlay_tag1)
-        assert len(tile_scores) == len(overlay_tag_maps[overlay_tag1])
+        tile_scores = tile_scores or self.get_tile_scores(img1_id, img2_id, img1_overlay_tag)
+        assert len(tile_scores) == len(overlay_tag_maps[img1_overlay_tag])
         if min(tile_scores) < self.minimum_score_threshold:
             return
 
-        overlay_tag2 = overlay_tag_pairs[overlay_tag1]
-
-        if img1_id not in self.overlay_image_names:
-            self.overlay_image_names[img1_id] = gen_overlay_image_names_dict()
-        if img2_id not in self.overlay_image_names:
-            self.overlay_image_names[img2_id] = gen_overlay_image_names_dict()
-        if img1_id not in self.overlay_image_scores:
-            self.overlay_image_scores[img1_id] = gen_overlay_image_scores_dict()
-        if img2_id not in self.overlay_image_scores:
-            self.overlay_image_scores[img2_id] = gen_overlay_image_scores_dict()
-        if img1_id not in self.overlay_tile_scores:
-            self.overlay_tile_scores[img1_id] = gen_overlay_tile_scores_dict()
-        if img2_id not in self.overlay_tile_scores:
-            self.overlay_tile_scores[img2_id] = gen_overlay_tile_scores_dict()
-
-        # img1_id_old = self.overlay_image_names[img2_id][overlay_tag2]
-        # img2_id_old = self.overlay_image_names[img1_id][overlay_tag1]
-        # overlay_score1_old = self.overlay_image_scores[img2_id][overlay_tag2]
-        # overlay_score2_old = self.overlay_image_scores[img1_id][overlay_tag1]
-
-        # if img2_id_old not in ('', img2_id) or overlay_score2_old == overlay_score:  # sanity check
-        #     print(overlay_tag1, img1_id, img2_id_old, overlay_score2_old, img2_id, overlay_score)
-        #     self.duplicates_to_check(img1_id, img2_id_old, overlay_tag1, 1)
-        #     self.duplicates_to_check(img1_id, img2_id, overlay_tag1, 2)
-        #     self.duplicates_to_check(img2_id_old, img2_id, '0022', 3)
-        #
-        # if img1_id_old not in ('', img1_id) or overlay_score1_old == overlay_score:  # sanity check
-        #     print(overlay_tag2, img2_id, img1_id_old, overlay_score1_old, img1_id, overlay_score)
-        #     self.duplicates_to_check(img2_id, img1_id_old, overlay_tag2, 4)
-        #     self.duplicates_to_check(img2_id, img1_id, overlay_tag2, 5)
-        #     self.duplicates_to_check(img1_id_old, img1_id, '0022', 6)
-
-        self.overlay_image_names[img2_id][overlay_tag2] = img1_id
-        self.overlay_image_names[img1_id][overlay_tag1] = img2_id
-        self.overlay_image_scores[img2_id][overlay_tag2] = overlay_score
-        self.overlay_image_scores[img1_id][overlay_tag1] = overlay_score
-
-        for ((i, j), (k, l), s) in zip(overlay_tag_maps[overlay_tag1], overlay_tag_maps[overlay_tag2], tile_scores):
-            self.overlay_tile_scores[img1_id][i, j, k, l] = s
-            self.overlay_tile_scores[img2_id][k, l, i, j] = s
-
-        # for ((i, j), (k, l), s) in zip(overlay_tag_maps[overlay_tag2], overlay_tag_maps[overlay_tag1], tile_scores):
-        #     self.overlay_tile_scores[img2_id][i, j, k, l] = s
-
-        if img1_id not in self.overlay_image_maps:
-            self.overlay_image_maps[img1_id] = gen_overlay_image_maps_dict()
-        self.overlay_image_maps[img1_id][overlay_tag1][img2_id] = (overlay_score, tile_scores)
-
-        if img2_id not in self.overlay_image_maps:
-            self.overlay_image_maps[img2_id] = gen_overlay_image_maps_dict()
-        self.overlay_image_maps[img2_id][overlay_tag2][img1_id] = (overlay_score, tile_scores)
+        if (img1_id, img2_id) not in self.overlay_image_maps:
+            self.overlay_image_maps[(img1_id, img2_id)] = {}
+        self.overlay_image_maps[(img1_id, img2_id)][img1_overlay_tag] = (overlay_score, tile_scores)
 
     def update_image_image_duplicate_tiles(self, img1_id, img2_id):
         """
@@ -700,8 +633,8 @@ def main():
 
     updated_image_image_duplicate_tiles = {}
     for img_id12, values in tqdm(sorted(sdcic.matches.items())):
-        p0 = len(set([v[0] for v in values]))  # all have the same overlay_tag
-        if len(values) >= 1 and p0 == 1:
+        p0 = set([v[0] for v in values])  # all have the same overlay_tag
+        if len(values) >= 1 and len(p0) == 1:
             if any([values[0] != v for v in values]):
                 raise ValueError('Inconsistent tile scores.')
             tag, overlay_score, tile_scores = values[0]
