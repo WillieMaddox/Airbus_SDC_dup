@@ -357,7 +357,7 @@ class SDCImageContainer:
 
                 for overlay_tag in overlay_tags:
 
-                    if img1_id < img2_id:  # lexigraphic sort
+                    if img1_id < img2_id:  # lexicographic sort
                         self.update_overlay_matches(img1_id, img2_id, overlay_tag)
                     else:
                         self.update_overlay_matches(img2_id, img1_id, overlay_tag_pairs[overlay_tag])
@@ -636,18 +636,17 @@ def main():
 
     updated_image_image_duplicate_tiles = {}
     for img_id12, values in tqdm(sorted(sdcic.matches.items())):
-        p0 = set([v[0] for v in values])  # all have the same overlay_tag
-        if len(values) >= 1 and len(p0) == 1:
-            if any([values[0] != v for v in values]):
-                raise ValueError('Inconsistent tile scores.')
-            tag, overlay_score, tile_scores = values[0]
-            sdcic.update_overlay_maps(img_id12[0], img_id12[1], tag, overlay_score=overlay_score, tile_scores=tile_scores)
-            if img_id12 in sdcic.image_image_duplicate_tiles:
-                continue
-            is_updated = sdcic.update_image_image_duplicate_tiles(img_id12[0], img_id12[1])
-            if not is_updated:
-                continue
-            updated_image_image_duplicate_tiles[img_id12] = sdcic.image_image_duplicate_tiles[img_id12]
+        img1_overlay_tags = set([v[0] for v in values])  # all have the same overlay_tag
+        if len(values) == 0 or len(img1_overlay_tags) != 1:
+            continue
+        img1_overlay_tag, overlay_score, tile_scores = values[0]
+        sdcic.update_overlay_maps(img_id12[0], img_id12[1], img1_overlay_tag, overlay_score, tile_scores)
+        if img_id12 in sdcic.image_image_duplicate_tiles:
+            continue
+        is_updated = sdcic.update_image_image_duplicate_tiles(img_id12[0], img_id12[1])
+        if not is_updated:
+            continue
+        updated_image_image_duplicate_tiles[img_id12] = sdcic.image_image_duplicate_tiles[img_id12]
 
     if len(updated_image_image_duplicate_tiles) > 0:
         update_image_image_duplicate_tiles(image_image_duplicate_tiles_file, updated_image_image_duplicate_tiles)
