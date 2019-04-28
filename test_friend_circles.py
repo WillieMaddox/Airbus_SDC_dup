@@ -302,9 +302,7 @@ class SDCImageContainer:
         img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
         bmh1_list = []
         bmh2_list = []
-        for ((i, j), (k, l)) in zip(img1_overlay_map, img2_overlay_map):
-            idx1 = tile_ij2idx[(i, j)]
-            idx2 = tile_ij2idx[(k, l)]
+        for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
             bmh1 = self.tile_bm0hash_grids[img1_id][idx1]
             bmh2 = self.tile_bm0hash_grids[img2_id][idx2]
             bmh1_list.append(bmh1)
@@ -318,9 +316,7 @@ class SDCImageContainer:
         img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
         img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
         scores = []
-        for ((i, j), (k, l)) in zip(img1_overlay_map, img2_overlay_map):
-            idx1 = tile_ij2idx[(i, j)]
-            idx2 = tile_ij2idx[(k, l)]
+        for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
             bmh1 = self.tile_bm0hash_grids[img1_id][idx1]
             bmh2 = self.tile_bm0hash_grids[img2_id][idx2]
             score = self.fuzzy_compare(bmh1, bmh2)
@@ -331,9 +327,7 @@ class SDCImageContainer:
         img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
         img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
         scores = []
-        for ((i, j), (k, l)) in zip(img1_overlay_map, img2_overlay_map):
-            idx1 = tile_ij2idx[(i, j)]
-            idx2 = tile_ij2idx[(k, l)]
+        for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
             tile1 = self.get_tile(img1, idx1)
             tile2 = self.get_tile(img2, idx2)
             score = self.fuzzy_diff(tile1, tile2)
@@ -491,8 +485,9 @@ class SDCImageContainer:
         for algo in hash_algos:
             stats[algo] = []
 
-        for s, ((i, j), (k, l)) in enumerate(overlay_tag_maps[img1_overlay_tag]):
-
+        for idx1, idx2 in overlay_tag_maps[img1_overlay_tag]:
+            i, j = tile_idx2ij[idx1]
+            k, l = tile_idx2ij[idx2]
             tile1 = sdc1.get_tile(img1, i, j)
             tile2 = sdc2.get_tile(img2, k, l)
             for name, func in hash_algos.items():
@@ -516,23 +511,23 @@ class SDCImageContainer:
         return stats
 
     def find_valid_pairings_by_search(self, img_list):
-        img_tag_scores = {img_id: self.__getitem__(img_id).overlay_image_scores for img_id in img_list}
+        img_tag_scores = {img_id: self.images[img_id].overlay_image_scores for img_id in img_list}
         for ii, img1_id in enumerate(img_list):
-            sdc1 = self.__getitem__(img1_id)
+            sdc1 = self.images[img1_id]
             img1 = sdc1.get_img()
             for jj, img2_id in enumerate(img_list):
                 if jj <= ii:
                     continue
-                sdc2 = self.__getitem__(img2_id)
+                sdc2 = self.images[img2_id]
                 img2 = sdc2.get_img()
 
-                for overlay_tag, overlay_map in overlay_tag_maps.items():
-                    overlay_scores = self.get_overlay_scores(img1, img2, overlay_map)
+                for img1_overlay_tag, img1_overlay_map in overlay_tag_maps.items():
+                    overlay_scores = self.get_overlay_scores(img1, img2, img1_overlay_tag)
                     if min(overlay_scores) > self.best_score_threshold:
-                        img_tag_scores[img1_id][overlay_tag] = min(overlay_scores)
-                        img_tag_scores[img2_id][overlay_tag_pairs[overlay_tag]] = min(overlay_scores)
-                        sdc1.update_overlay_map(sdc2, overlay_scores, overlay_tag)
-                        sdc2.update_overlay_map(sdc1, overlay_scores, overlay_tag_pairs[overlay_tag])
+                        img_tag_scores[img1_id][img1_overlay_tag] = min(overlay_scores)
+                        img_tag_scores[img2_id][overlay_tag_pairs[img1_overlay_tag]] = min(overlay_scores)
+                        sdc1.update_overlay_map(sdc2, overlay_scores, img1_overlay_tag)
+                        sdc2.update_overlay_map(sdc1, overlay_scores, overlay_tag_pairs[img1_overlay_tag])
                         break
 
             print(f'{ii}/{len(img_list)}')
@@ -605,7 +600,9 @@ class SDCImage:
         self.overlay_image_names[tag] = other_sdc.img_id
         self.overlay_image_scores[tag] = overlay_score
 
-        for ((i, j), (k, l), s) in zip(overlay_tag_maps[tag], overlay_tag_maps[overlay_tag_pairs[tag]], tile_scores):
+        for (idx1, idx2, s) in zip(overlay_tag_maps[tag], overlay_tag_maps[overlay_tag_pairs[tag]], tile_scores):
+            i, j = tile_idx2ij[idx1]
+            k, l = tile_idx2ij[idx2]
             self.overlay_tile_scores[i, j, k, l] = s
 
         self.overlay_image_maps[tag][other_sdc.img_id] = {'overlay_score': overlay_score, 'tile_scores': tile_scores}
@@ -666,11 +663,9 @@ def main():
         df = pd.DataFrame(matches_list)
         df.to_pickle(overlay_matches_file)
 
-    else:
-
-        df = pd.read_pickle(overlay_matches_file)
-        for row in tqdm(df.to_dict('split')['data']):
-            sdcic.matches[(row[0], row[1])].append((row[2], row[3], row[4:]))
+    df = pd.read_pickle(overlay_matches_file)
+    for row in tqdm(df.to_dict('split')['data']):
+        sdcic.matches[(row[0], row[1])].append((row[2], row[3], row[4:]))
 
     if not os.path.exists(overlay_pixel_scores_file):
 
@@ -699,11 +694,12 @@ def main():
         df = pd.DataFrame(overlay_pixel_scores_list)
         df.to_pickle(overlay_pixel_scores_file)
 
-    else:
-
-        df = pd.read_pickle(overlay_pixel_scores_file)
-        for row in tqdm(df.to_dict('split')['data']):
-            sdcic.overlay_pixel_scores[(row[0], row[1])].append((row[2], row[3:]))
+    df = pd.read_pickle(overlay_pixel_scores_file)
+    for row in tqdm(df.to_dict('split')['data']):
+        if (row[0], row[1]) not in sdcic.overlay_pixel_scores:
+            sdcic.overlay_pixel_scores[(row[0], row[1])] = {}
+        assert row[2] not in sdcic.overlay_pixel_scores[(row[0], row[1])]
+        sdcic.overlay_pixel_scores[(row[0], row[1])][row[2]] = row[3:]
 
     sdcic.image_image_duplicate_tiles = read_image_image_duplicate_tiles(image_image_duplicate_tiles_file)
 

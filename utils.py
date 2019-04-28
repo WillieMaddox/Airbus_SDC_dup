@@ -51,31 +51,31 @@ overlay_tag_pairs = {
 
 
 overlay_tag_maps = {
-    '0022': np.array([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]]),
-    '0122': np.array([[0, 1], [0, 2], [1, 1], [1, 2], [2, 1], [2, 2]]),
-    '0021': np.array([[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1]]),
-    '1022': np.array([[1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]]),
-    '0012': np.array([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]]),
-    '1122': np.array([[1, 1], [1, 2], [2, 1], [2, 2]]),
-    '0011': np.array([[0, 0], [0, 1], [1, 0], [1, 1]]),
-    '1021': np.array([[1, 0], [1, 1], [2, 0], [2, 1]]),
-    '0112': np.array([[0, 1], [0, 2], [1, 1], [1, 2]]),
-    '0222': np.array([[0, 2], [1, 2], [2, 2]]),
-    '0020': np.array([[0, 0], [1, 0], [2, 0]]),
-    '2022': np.array([[2, 0], [2, 1], [2, 2]]),
-    '0002': np.array([[0, 0], [0, 1], [0, 2]]),
-    '1222': np.array([[1, 2], [2, 2]]),
-    '0010': np.array([[0, 0], [1, 0]]),
-    '1020': np.array([[1, 0], [2, 0]]),
-    '0212': np.array([[0, 2], [1, 2]]),
-    '2122': np.array([[2, 1], [2, 2]]),
-    '0001': np.array([[0, 0], [0, 1]]),
-    '2021': np.array([[2, 0], [2, 1]]),
-    '0102': np.array([[0, 1], [0, 2]]),
-    '2222': np.array([[2, 2]]),
-    '0000': np.array([[0, 0]]),
-    '2020': np.array([[2, 0]]),
-    '0202': np.array([[0, 2]])}
+    '0022': np.array([0, 1, 2, 3, 4, 5, 6, 7, 8]),
+    '0122': np.array([1, 2, 4, 5, 7, 8]),
+    '0021': np.array([0, 1, 3, 4, 6, 7]),
+    '1022': np.array([3, 4, 5, 6, 7, 8]),
+    '0012': np.array([0, 1, 2, 3, 4, 5]),
+    '1122': np.array([4, 5, 7, 8]),
+    '0011': np.array([0, 1, 3, 4]),
+    '1021': np.array([3, 4, 6, 7]),
+    '0112': np.array([1, 2, 4, 5]),
+    '0222': np.array([2, 5, 8]),
+    '0020': np.array([0, 3, 6]),
+    '2022': np.array([6, 7, 8]),
+    '0002': np.array([0, 1, 2]),
+    '1222': np.array([5, 8]),
+    '0010': np.array([0, 3]),
+    '1020': np.array([3, 6]),
+    '0212': np.array([2, 5]),
+    '2122': np.array([7, 8]),
+    '0001': np.array([0, 1]),
+    '2021': np.array([6, 7]),
+    '0102': np.array([1, 2]),
+    '2222': np.array([8]),
+    '0000': np.array([0]),
+    '2020': np.array([6]),
+    '0202': np.array([2])}
 
 
 def generate_overlay_tag_slices():
@@ -119,9 +119,7 @@ def generate_overlay_tag_slices():
 def generate_pair_tag_lookup():
     ptl = {}
     for tag1, tag2 in overlay_tag_pairs.items():
-        for pair in zip(overlay_tag_maps[tag1], overlay_tag_maps[tag2]):
-            idx1 = tile_ij2idx[tuple(pair[0])]
-            idx2 = tile_ij2idx[tuple(pair[1])]
+        for idx1, idx2 in zip(overlay_tag_maps[tag1], overlay_tag_maps[tag2]):
             ptl[(idx1, idx2)] = tag1
     return ptl
 
@@ -129,21 +127,13 @@ def generate_pair_tag_lookup():
 def generate_overlay_tag_nines_mask():
     overlay_tag_nines_mask = {}
     for overlay_tag, overlay_map in overlay_tag_maps.items():
-        arr33 = np.zeros((3, 3), dtype=np.bool8)
-        for i, j in overlay_map:
-            arr33[i, j] = True
-        overlay_tag_nines_mask[overlay_tag] = arr33.reshape(-1)
+        arr9 = np.zeros(9, dtype=np.bool8)
+        for idx in overlay_map:
+            arr9[idx] = True
+        overlay_tag_nines_mask[overlay_tag] = arr9
     return overlay_tag_nines_mask
 
 
-def generate_overlay_tag_maps_1d():
-    overlay_tag_maps_1d = {}
-    for overlay_tag, overlay_map in overlay_tag_maps.items():
-        vec = np.zeros(len(overlay_map), dtype=np.uint8)
-        for x, (i, j) in enumerate(overlay_map):
-            vec[x] = i * 3 + j
-        overlay_tag_maps_1d[overlay_tag] = vec
-    return overlay_tag_maps_1d
 
 
 def get_datetime_now(t=None, fmt='%Y_%m%d_%H%M'):
@@ -427,11 +417,9 @@ def even_split(n_samples, batch_size, split):
 
 
 def create_dataset_from_tiles_and_truth(dup_tiles, dup_truth):
-    overlay_tag_maps_1d = generate_overlay_tag_maps_1d()
-
     overlay_tag_maps0 = {}
-    for img1_overlay_tag, img1_overlay_map in overlay_tag_maps_1d.items():
-        img2_overlay_map = overlay_tag_maps_1d[overlay_tag_pairs[img1_overlay_tag]]
+    for img1_overlay_tag, img1_overlay_map in overlay_tag_maps.items():
+        img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
         overlay_tag_maps0[img1_overlay_tag] = list(zip(img1_overlay_map, img2_overlay_map))
 
     used_ids = set()
