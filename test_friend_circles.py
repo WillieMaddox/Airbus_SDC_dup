@@ -264,19 +264,19 @@ class SDCImageContainer:
         i, j = tile_idx2ij[idx]
         return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
 
-    def fuzzy_compare(self, tile1, tile2):
+    def fuzzy_join(self, tile1, tile2):
         maxab = np.max(np.stack([tile1, tile2]), axis=0)
         a = maxab - tile2
         b = maxab - tile1
-        ab = a + b
-        n = np.prod(maxab.shape)
+        return a + b
+
+    def fuzzy_compare(self, tile1, tile2):
+        ab = self.fuzzy_join(tile1, tile2)
+        n = np.prod(ab.shape)
         return np.sum(255 - ab) / (255 * n)
 
     def fuzzy_diff(self, tile1, tile2):
-        maxab = np.max(np.stack([tile1, tile2]), axis=0)
-        a = maxab - tile2
-        b = maxab - tile1
-        ab = a + b
+        ab = self.fuzzy_join(tile1, tile2)
         return np.sum(ab)
 
     def check_exact_match(self, img1, img2, overlay_tag):
