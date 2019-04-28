@@ -110,7 +110,7 @@ class SDCImageContainer:
             df = pd.read_pickle(filename_entropy)
             img_entropy_grids = {key: val for key, val in df.to_dict('split')['data']}
 
-        img_dup_tiles = read_image_duplicate_tiles(filename_tile_dups)
+        img_dups_vec = read_image_duplicate_tiles(filename_tile_dups)
 
         mm = 0
         hh = 0
@@ -127,82 +127,63 @@ class SDCImageContainer:
 
             img = None
 
-            prev_md5hash_grid = img_md5hash_grids.get(img_id)
-            if prev_md5hash_grid is None:
+            tile_md5hash_grid = img_md5hash_grids.get(img_id)
+            if tile_md5hash_grid is None:
                 mm += 1
                 img = self.get_img(img_id)
-                prev_md5hash_grid = np.zeros((self.n_rows, self.n_cols), dtype=self.tile_md5hash_dtype)
-                for i in range(self.n_rows):
-                    for j in range(self.n_cols):
-                        tile = self.get_tile0(img, i, j)
-                        # tile = np.delete(tile, self.tile_slice, axis=0)
-                        # tile = np.delete(tile, self.tile_slice, axis=1)
-                        prev_md5hash_grid[i, j] = hashlib.md5(tile.tobytes()).hexdigest()[:self.tile_md5hash_len]
+                tile_md5hash_grid = np.zeros(self.n_tiles, dtype=self.tile_md5hash_dtype)
+                for t1 in range(self.n_tiles):
+                    tile = self.get_tile(img, t1)
+                    tile_md5hash_grid[t1] = hashlib.md5(tile.tobytes()).hexdigest()[:self.tile_md5hash_len]
 
-            tile_md5hash_grid = [''] * self.n_tiles
-            for t1 in range(self.n_tiles):
-                i, j = tile_idx2ij[t1]
-                tile_md5hash_grid[t1] = prev_md5hash_grid[i, j]
-
-            md5hash_records.append({'ImageId': img_id, 'md5hash_grid': prev_md5hash_grid})  # str
+            md5hash_records.append({'ImageId': img_id, 'md5hash_grid': tile_md5hash_grid})  # str
             self.tile_md5hash_grids[img_id] = tile_md5hash_grid
 
-            prev_bm0hash_grid = img_bm0hash_grids.get(img_id)
-            if prev_bm0hash_grid is None:
+            tile_bm0hash_grid = img_bm0hash_grids.get(img_id)
+            if tile_bm0hash_grid is None:
                 hh += 1
-                if img is None:
-                    img = self.get_img(img_id)
-                prev_bm0hash_grid = np.zeros((self.n_rows, self.n_cols, self.tile_bm0hash_len), dtype=self.tile_bm0hash_dtype)
-                for i in range(self.n_rows):
-                    for j in range(self.n_cols):
-                        tile = self.get_tile0(img, i, j)
-                        prev_bm0hash_grid[i, j] = img_hash.blockMeanHash(tile, mode=0)[0]
+                img = self.get_img(img_id) if img is None else img
+                tile_bm0hash_grid = np.zeros((self.n_tiles, self.tile_bm0hash_len), dtype=self.tile_bm0hash_dtype)
+                for t1 in range(self.n_tiles):
+                    tile = self.get_tile(img, t1)
+                    tile_bm0hash_grid[t1] = img_hash.blockMeanHash(tile, mode=0)[0]
 
-            tile_bm0hash_grid = [(0,)] * self.n_tiles
-            for t1 in range(self.n_tiles):
-                i, j = tile_idx2ij[t1]
-                tile_bm0hash_grid[t1] = tuple(prev_bm0hash_grid[i, j])
+            bm0hash_records.append({'ImageId': img_id, 'bm0hash_grid': tile_bm0hash_grid})  # int
+            self.tile_bm0hash_grids[img_id] = tuple(tuple(bm0) for bm0 in tile_bm0hash_grid)
 
-            bm0hash_records.append({'ImageId': img_id, 'bm0hash_grid': prev_bm0hash_grid})  # int
-            self.tile_bm0hash_grids[img_id] = tile_bm0hash_grid
-
-            prev_entropy_grid = img_entropy_grids.get(img_id)
-            if prev_entropy_grid is None:
+            tile_entropy_grid = img_entropy_grids.get(img_id)
+            if tile_entropy_grid is None:
                 ee += 1
-                if img is None:
-                    img = self.get_img(img_id)
-                prev_entropy_grid = np.zeros((self.n_rows, self.n_cols, 2), dtype=np.float)
-                for i in range(self.n_rows):
-                    for j in range(self.n_cols):
-                        tile = self.get_tile0(img, i, j)
-                        prev_entropy_grid[i, j] = get_entropy(tile)
+                img = self.get_img(img_id) if img is None else img
+                tile_entropy_grid = np.zeros((self.n_tiles, 2), dtype=np.float)
+                for t1 in range(self.n_tiles):
+                    tile = self.get_tile(img, t1)
+                    tile_entropy_grid[t1] = get_entropy(tile)
 
-            tile_entropy_grid = [0] * self.n_tiles
-            for t1 in range(self.n_tiles):
-                i, j = tile_idx2ij[t1]
-                tile_entropy_grid[t1] = prev_entropy_grid[i, j]
-
-            entropy_records.append({'ImageId': img_id, 'entropy_grid': prev_entropy_grid})  # int
+            entropy_records.append({'ImageId': img_id, 'entropy_grid': tile_entropy_grid})  # int
             self.tile_entropy_grids[img_id] = tile_entropy_grid
 
             # Quick lookup just to tell us if any tiles within a single image are exact duplicates.
-            prev_dup_tiles = img_dup_tiles.get(img_id)
-            if prev_dup_tiles is None:
+            tile_dups_vec = img_dups_vec.get(img_id)
+            if tile_dups_vec is None:
                 dd += 1
-                if img is None:
-                    img = self.get_img(img_id)
-                prev_dup_tiles = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
+                img = self.get_img(img_id) if img is None else img
+                tile_dups_vec = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
                 for t1 in range(self.n_tiles):
                     for t2 in range(self.n_tiles):
                         if t2 <= t1:
                             continue
-                        if tile_md5hash_grid[t1] != tile_md5hash_grid[t2]:
+                        if self.tile_md5hash_grids[img_id][t1] != self.tile_md5hash_grids[img_id][t2]:
                             continue
-                        if np.all(self.get_tile(img, t1) == self.get_tile(img, t2)):
-                            prev_dup_tiles[t2] = min(prev_dup_tiles[t1], prev_dup_tiles[t2])
+                        if np.any(self.get_tile(img, t1) != self.get_tile(img, t2)):
+                            # This check isn't really necessary.
+                            # We do it anyway just to double check that the hashes aren't corrupted.
+                            continue
+                        tile_dups_vec[t2] = min(tile_dups_vec[t1], tile_dups_vec[t2])
 
-            duplicate_records[img_id] = prev_dup_tiles
-            self.image_duplicate_tiles[img_id] = prev_dup_tiles
+            duplicate_records[img_id] = tile_dups_vec
+            self.image_duplicate_tiles[img_id] = tile_dups_vec
+
 
             if mm >= 5000:
                 df = pd.DataFrame().append(md5hash_records)
@@ -610,9 +591,11 @@ def main():
         image_entropy_grids_file,
         image_duplicate_tiles_file)
 
+    # n_matching_tiles = 9
     # n_matching_tiles = 6  # 5:14 minutes
     # n_matching_tiles = 4  # 12:52 minutes
     n_matching_tiles = 3  # 15:43 minutes
+    # n_matching_tiles = 2  # 26:27 minutes
     overlay_matches_file = os.path.join("data", f"overlay_matches_{n_matching_tiles}.pkl")
 
     if not os.path.exists(overlay_matches_file):
