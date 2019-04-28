@@ -257,6 +257,13 @@ class SDCImageContainer:
         n = np.prod(maxab.shape)
         return np.sum(255 - ab) / (255 * n)
 
+    def fuzzy_diff(self, tile1, tile2):
+        maxab = np.max(np.stack([tile1, tile2]), axis=0)
+        a = maxab - tile2
+        b = maxab - tile1
+        ab = a + b
+        return np.sum(ab)
+
     def check_exact_match(self, img1, img2, overlay_tag):
         slice1 = overlay_tag_slices[overlay_tag]
         slice2 = overlay_tag_slices[overlay_tag_pairs[overlay_tag]]
@@ -302,6 +309,19 @@ class SDCImageContainer:
             bmh1 = self.tile_bm0hash_grids[img1_id][idx1]
             bmh2 = self.tile_bm0hash_grids[img2_id][idx2]
             score = self.fuzzy_compare(bmh1, bmh2)
+            scores.append(score)
+        return scores
+
+    def get_pixel_scores(self, img1, img2, overlay_tag):
+        overlay_map1 = overlay_tag_maps[overlay_tag]
+        overlay_map2 = overlay_tag_maps[overlay_tag_pairs[overlay_tag]]
+        scores = []
+        for ((i, j), (k, l)) in zip(overlay_map1, overlay_map2):
+            idx1 = tile_ij2idx[(i, j)]
+            idx2 = tile_ij2idx[(k, l)]
+            tile1 = self.get_tile(img1, idx1)
+            tile2 = self.get_tile(img2, idx2)
+            score = self.fuzzy_diff(tile1, tile2)
             scores.append(score)
         return scores
 
