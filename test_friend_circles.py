@@ -279,30 +279,30 @@ class SDCImageContainer:
         ab = self.fuzzy_join(tile1, tile2)
         return np.sum(ab)
 
-    def check_exact_match(self, img1, img2, overlay_tag):
-        slice1 = overlay_tag_slices[overlay_tag]
-        slice2 = overlay_tag_slices[overlay_tag_pairs[overlay_tag]]
-        overlay1 = img1[slice1]
-        overlay2 = img2[slice2]
-        is_perfect_score = np.all(overlay1 == overlay2)
+    def check_exact_match(self, img1, img2, img1_overlay_tag):
+        img1_slice = overlay_tag_slices[img1_overlay_tag]
+        img2_slice = overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]
+        img1_overlay = img1[img1_slice]
+        img2_overlay = img2[img2_slice]
+        is_perfect_score = np.all(img1_overlay == img2_overlay)
         return is_perfect_score
 
-    def get_bmh_score(self, img1, img2, overlay_tag):
-        slice1 = overlay_tag_slices[overlay_tag]
-        slice2 = overlay_tag_slices[overlay_tag_pairs[overlay_tag]]
-        overlay1 = img1[slice1]
-        overlay2 = img2[slice2]
-        bmh1 = img_hash.blockMeanHash(overlay1, mode=0)
-        bmh2 = img_hash.blockMeanHash(overlay2, mode=0)
+    def get_bmh_score(self, img1, img2, img1_overlay_tag):
+        img1_slice = overlay_tag_slices[img1_overlay_tag]
+        img2_slice = overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]
+        img1_overlay = img1[img1_slice]
+        img2_overlay = img2[img2_slice]
+        bmh1 = img_hash.blockMeanHash(img1_overlay, mode=0)
+        bmh2 = img_hash.blockMeanHash(img2_overlay, mode=0)
         score = self.fuzzy_compare(bmh1, bmh2)
         return score
 
-    def get_overlay_score(self, img1_id, img2_id, overlay_tag):
-        overlay_map1 = overlay_tag_maps[overlay_tag]
-        overlay_map2 = overlay_tag_maps[overlay_tag_pairs[overlay_tag]]
+    def get_overlay_score(self, img1_id, img2_id, img1_overlay_tag):
+        img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
+        img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
         bmh1_list = []
         bmh2_list = []
-        for ((i, j), (k, l)) in zip(overlay_map1, overlay_map2):
+        for ((i, j), (k, l)) in zip(img1_overlay_map, img2_overlay_map):
             idx1 = tile_ij2idx[(i, j)]
             idx2 = tile_ij2idx[(k, l)]
             bmh1 = self.tile_bm0hash_grids[img1_id][idx1]
@@ -314,11 +314,11 @@ class SDCImageContainer:
         score = self.fuzzy_compare(bmh1_arr, bmh2_arr)
         return score
 
-    def get_tile_scores(self, img1_id, img2_id, overlay_tag):
-        overlay_map1 = overlay_tag_maps[overlay_tag]
-        overlay_map2 = overlay_tag_maps[overlay_tag_pairs[overlay_tag]]
+    def get_tile_scores(self, img1_id, img2_id, img1_overlay_tag):
+        img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
+        img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
         scores = []
-        for ((i, j), (k, l)) in zip(overlay_map1, overlay_map2):
+        for ((i, j), (k, l)) in zip(img1_overlay_map, img2_overlay_map):
             idx1 = tile_ij2idx[(i, j)]
             idx2 = tile_ij2idx[(k, l)]
             bmh1 = self.tile_bm0hash_grids[img1_id][idx1]
@@ -327,11 +327,11 @@ class SDCImageContainer:
             scores.append(score)
         return scores
 
-    def get_pixel_scores(self, img1, img2, overlay_tag):
-        overlay_map1 = overlay_tag_maps[overlay_tag]
-        overlay_map2 = overlay_tag_maps[overlay_tag_pairs[overlay_tag]]
+    def get_pixel_scores(self, img1, img2, img1_overlay_tag):
+        img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
+        img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
         scores = []
-        for ((i, j), (k, l)) in zip(overlay_map1, overlay_map2):
+        for ((i, j), (k, l)) in zip(img1_overlay_map, img2_overlay_map):
             idx1 = tile_ij2idx[(i, j)]
             idx2 = tile_ij2idx[(k, l)]
             tile1 = self.get_tile(img1, idx1)
@@ -480,10 +480,10 @@ class SDCImageContainer:
 
         return is_updated
 
-    def compute_stats(self, sdc1, sdc2, img1, img2, overlay_tag):
+    def compute_stats(self, sdc1, sdc2, img1, img2, img1_overlay_tag):
 
         stats = {}
-        stats['overlay_tag'] = (overlay_tag, overlay_tag_pairs[overlay_tag])
+        stats['overlay_tag'] = (img1_overlay_tag, overlay_tag_pairs[img1_overlay_tag])
         stats['img_id'] = (sdc1.img_id, sdc2.img_id)
         # stats['overlay_score'] = overlay_score
         # stats['blockMeanHash0'] = tile_scores
@@ -491,7 +491,7 @@ class SDCImageContainer:
         for algo in hash_algos:
             stats[algo] = []
 
-        for s, ((i, j), (k, l)) in enumerate(overlay_tag_maps[overlay_tag]):
+        for s, ((i, j), (k, l)) in enumerate(overlay_tag_maps[img1_overlay_tag]):
 
             tile1 = sdc1.get_tile(img1, i, j)
             tile2 = sdc2.get_tile(img2, k, l)

@@ -279,13 +279,13 @@ def read_duplicate_truth(filename):
 
     with open(filename, 'r') as ifs:
         for line in ifs.readlines():
-            img1_id, img2_id, overlay_tag, is_duplicate = line.strip().split(' ')
+            img1_id, img2_id, img1_overlay_tag, is_duplicate = line.strip().split(' ')
             if img1_id > img2_id:
                 img1_id, img2_id = img2_id, img1_id
-                overlay_tag = overlay_tag_pairs[overlay_tag]
-            if (img1_id, img2_id, overlay_tag) in duplicate_truth:
+                img1_overlay_tag = overlay_tag_pairs[img1_overlay_tag]
+            if (img1_id, img2_id, img1_overlay_tag) in duplicate_truth:
                 continue
-            duplicate_truth[(img1_id, img2_id, overlay_tag)] = int(is_duplicate)
+            duplicate_truth[(img1_id, img2_id, img1_overlay_tag)] = int(is_duplicate)
 
     return duplicate_truth
 
@@ -293,8 +293,8 @@ def read_duplicate_truth(filename):
 def write_duplicate_truth(filename, duplicate_truth):
 
     with open(filename, 'w') as ofs:
-        for (img1_id, img2_id, overlay_tag), is_duplicate in sorted(duplicate_truth.items()):
-            ofs.write(' '.join([img1_id, img2_id, overlay_tag, str(is_duplicate)]))
+        for (img1_id, img2_id, img1_overlay_tag), is_duplicate in sorted(duplicate_truth.items()):
+            ofs.write(' '.join([img1_id, img2_id, img1_overlay_tag, str(is_duplicate)]))
             ofs.write('\n')
 
 
@@ -304,15 +304,15 @@ def update_duplicate_truth(filename, new_truth):
     duplicate_truth = read_duplicate_truth(filename)
     n_lines_in_original = len(duplicate_truth)
 
-    for (img1_id, img2_id, overlay_tag), is_duplicate in new_truth.items():
+    for (img1_id, img2_id, img1_overlay_tag), is_duplicate in new_truth.items():
         if img1_id > img2_id:
             img1_id, img2_id = img2_id, img1_id
-            overlay_tag = overlay_tag_pairs[overlay_tag]
-        if (img1_id, img2_id, overlay_tag) in duplicate_truth:
-            if duplicate_truth[(img1_id, img2_id, overlay_tag)] != is_duplicate:
-                raise ValueError(f"{img1_id} and {img2_id} cannot both be {duplicate_truth[(img1_id, img2_id, overlay_tag)]} and {is_duplicate}")
+            img1_overlay_tag = overlay_tag_pairs[img1_overlay_tag]
+        if (img1_id, img2_id, img1_overlay_tag) in duplicate_truth:
+            if duplicate_truth[(img1_id, img2_id, img1_overlay_tag)] != is_duplicate:
+                raise ValueError(f"{img1_id} and {img2_id} cannot both be {duplicate_truth[(img1_id, img2_id, img1_overlay_tag)]} and {is_duplicate}")
             continue
-        duplicate_truth[(img1_id, img2_id, overlay_tag)] = is_duplicate
+        duplicate_truth[(img1_id, img2_id, img1_overlay_tag)] = is_duplicate
         has_updated = True
 
     if has_updated:
@@ -430,15 +430,15 @@ def create_dataset_from_tiles_and_truth(dup_tiles, dup_truth):
     overlay_tag_maps_1d = generate_overlay_tag_maps_1d()
 
     overlay_tag_maps0 = {}
-    for overlay_tag1, overlay_map1 in overlay_tag_maps_1d.items():
-        overlay_map2 = overlay_tag_maps_1d[overlay_tag_pairs[overlay_tag1]]
-        overlay_tag_maps0[overlay_tag1] = list(zip(overlay_map1, overlay_map2))
+    for img1_overlay_tag, img1_overlay_map in overlay_tag_maps_1d.items():
+        img2_overlay_map = overlay_tag_maps_1d[overlay_tag_pairs[img1_overlay_tag]]
+        overlay_tag_maps0[img1_overlay_tag] = list(zip(img1_overlay_map, img2_overlay_map))
 
     used_ids = set()
     img_overlay_pairs = {}
-    for (img1_id, img2_id, overlay_tag1), is_dup in dup_truth.items():
+    for (img1_id, img2_id, img1_overlay_tag), is_dup in dup_truth.items():
         if is_dup:
-            img_overlay_pairs[(img1_id, img2_id, overlay_tag1)] = overlay_tag_maps0[overlay_tag1]
+            img_overlay_pairs[(img1_id, img2_id, img1_overlay_tag)] = overlay_tag_maps0[img1_overlay_tag]
             used_ids.add(img1_id)
             used_ids.add(img2_id)
 
