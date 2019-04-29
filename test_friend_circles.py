@@ -36,10 +36,6 @@ hash_algos = {
 }
 
 
-def gen_image_dup_dict():
-    return {idx: defaultdict(list) for idx in range(len(tile_ij2idx))}
-
-
 def filter_duplicates(img_ids):
     df = pd.read_csv('dup_blacklist_6.csv')
     blacklist = []
@@ -141,14 +137,14 @@ class SDCImageContainer:
                 cc += 1
                 img = self.get_img(img_id)
                 prev_counter_grid = np.zeros((self.n_tiles, 3, 2), dtype=np.int64)
-                for t1 in range(self.n_tiles):
-                    tile = self.get_tile(img, t1)
+                for idx in range(self.n_tiles):
+                    tile = self.get_tile(img, idx)
                     for chan in range(3):
                         unique, counts = np.unique(tile[:, :, chan].flatten(), return_counts=True)
                         max_idx = np.argmax(counts)
-                        prev_counter_grid[t1, chan] = np.array([unique[max_idx], counts[max_idx]])
+                        prev_counter_grid[idx, chan] = np.array([unique[max_idx], counts[max_idx]])
 
-            tile_counter_grid = [tuple(tuple(pcg) for pcg in prev_counter_grid[t1]) for t1 in range(self.n_tiles)]
+            tile_counter_grid = [tuple(tuple(pcg) for pcg in prev_counter_grid[idx]) for idx in range(self.n_tiles)]
 
             counter_records.append({'ImageId': img_id, 'counter_grid': prev_counter_grid})  # int
             self.tile_counter_grids[img_id] = tile_counter_grid
@@ -158,9 +154,9 @@ class SDCImageContainer:
                 mm += 1
                 img = self.get_img(img_id) if img is None else img
                 tile_md5hash_grid = np.zeros(self.n_tiles, dtype=self.tile_md5hash_dtype)
-                for t1 in range(self.n_tiles):
-                    tile = self.get_tile(img, t1)
-                    tile_md5hash_grid[t1] = hashlib.md5(tile.tobytes()).hexdigest()[:self.tile_md5hash_len]
+                for idx in range(self.n_tiles):
+                    tile = self.get_tile(img, idx)
+                    tile_md5hash_grid[idx] = hashlib.md5(tile.tobytes()).hexdigest()[:self.tile_md5hash_len]
 
             md5hash_records.append({'ImageId': img_id, 'md5hash_grid': tile_md5hash_grid})  # str
             self.tile_md5hash_grids[img_id] = tile_md5hash_grid
@@ -170,9 +166,9 @@ class SDCImageContainer:
                 hh += 1
                 img = self.get_img(img_id) if img is None else img
                 tile_bm0hash_grid = np.zeros((self.n_tiles, self.tile_bm0hash_len), dtype=self.tile_bm0hash_dtype)
-                for t1 in range(self.n_tiles):
-                    tile = self.get_tile(img, t1)
-                    tile_bm0hash_grid[t1] = img_hash.blockMeanHash(tile, mode=0)[0]
+                for idx in range(self.n_tiles):
+                    tile = self.get_tile(img, idx)
+                    tile_bm0hash_grid[idx] = img_hash.blockMeanHash(tile, mode=0)[0]
 
             bm0hash_records.append({'ImageId': img_id, 'bm0hash_grid': tile_bm0hash_grid})  # int
             self.tile_bm0hash_grids[img_id] = tuple(tuple(bm0) for bm0 in tile_bm0hash_grid)
@@ -182,9 +178,9 @@ class SDCImageContainer:
                 ee += 1
                 img = self.get_img(img_id) if img is None else img
                 tile_entropy_grid = np.zeros((self.n_tiles, 2), dtype=np.float)
-                for t1 in range(self.n_tiles):
-                    tile = self.get_tile(img, t1)
-                    tile_entropy_grid[t1] = get_entropy(tile)
+                for idx in range(self.n_tiles):
+                    tile = self.get_tile(img, idx)
+                    tile_entropy_grid[idx] = get_entropy(tile)
 
             entropy_records.append({'ImageId': img_id, 'entropy_grid': tile_entropy_grid})  # int
             self.tile_entropy_grids[img_id] = tile_entropy_grid
@@ -195,17 +191,17 @@ class SDCImageContainer:
                 dd += 1
                 img = self.get_img(img_id) if img is None else img
                 tile_dups_vec = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
-                for t1 in range(self.n_tiles):
-                    for t2 in range(self.n_tiles):
-                        if t2 <= t1:
+                for idx1 in range(self.n_tiles):
+                    for idx2 in range(self.n_tiles):
+                        if idx2 <= idx1:
                             continue
-                        if self.tile_md5hash_grids[img_id][t1] != self.tile_md5hash_grids[img_id][t2]:
+                        if self.tile_md5hash_grids[img_id][idx1] != self.tile_md5hash_grids[img_id][idx2]:
                             continue
-                        if np.any(self.get_tile(img, t1) != self.get_tile(img, t2)):
+                        if np.any(self.get_tile(img, idx1) != self.get_tile(img, idx2)):
                             # This check isn't really necessary.
                             # We do it anyway just to double check that the hashes aren't corrupted.
                             continue
-                        tile_dups_vec[t2] = min(tile_dups_vec[t1], tile_dups_vec[t2])
+                        tile_dups_vec[idx2] = min(tile_dups_vec[idx1], tile_dups_vec[idx2])
 
             duplicate_records[img_id] = tile_dups_vec
             self.image_duplicate_tiles[img_id] = tile_dups_vec
@@ -349,8 +345,7 @@ class SDCImageContainer:
                 overlay_tags = set()
                 for t1 in tiles1:
                     for t2 in tiles2:
-                        pair_key = (t1, t2)
-                        overlay_tags.add(pair_tag_lookup.get(pair_key))
+                        overlay_tags.add(pair_tag_lookup.get((t1, t2)))
 
                 overlay_tags.intersection_update(overlay_64321_tags)
 
@@ -549,6 +544,9 @@ class SDCImage:
         self.img_id = img_id
         self.filename = os.path.join(train_image_dir, img_id)
         self.sz = tile_size
+        self.n_rows = 3
+        self.n_cols = 3
+        self.n_tiles = self.n_rows * self.n_cols
         self.tile_slice = tile_slice
         self.tile_bm0hash_len = tile_bm0hash_len
         self.tile_bm0hash_dtype = tile_bm0hash_dtype
@@ -563,33 +561,30 @@ class SDCImage:
     def get_img(self):
         return cv2.imread(self.filename)
 
-    def get_tile(self, img, i, j):
+    def get_tile(self, img, idx):
+        i, j = tile_idx2ij[idx]
         return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
 
     @property
     def tile_bm0hash_grid(self):
         if self._tile_bm0hash_grid is None:
-            # self._tile_bm0hash_grid = np.zeros((3, 3, self.tile_bm0hash_len), dtype=self.tile_bm0hash_dtype)
-            self._tile_bm0hash_grid = {}
+            self._tile_bm0hash_grid = np.zeros((self.n_tiles, self.tile_bm0hash_len), dtype=self.tile_bm0hash_dtype)
             img = self.get_img()
-            for i in range(3):
-                for j in range(3):
-                    tile = self.get_tile(img, i, j)
-                    # tile = np.delete(tile, self.tile_slice, axis=0)
-                    # tile = np.delete(tile, self.tile_slice, axis=1)
-                    self._tile_bm0hash_grid[(i, j)] = img_hash.blockMeanHash(tile, mode=0)
+            for idx in range(self.n_tiles):
+                tile = self.get_tile(img, idx)
+                # tile = np.delete(tile, self.tile_slice, axis=0)
+                # tile = np.delete(tile, self.tile_slice, axis=1)
+                self._tile_bm0hash_grid[idx] = img_hash.blockMeanHash(tile, mode=0)
         return self._tile_bm0hash_grid
 
     @property
     def tile_entropy_grid(self):
         if self._tile_entropy_grid is None:
-            # self._tile_entropy_grid = np.zeros((3, 3, 3), dtype=np.float) # (i, j, chan)
-            self._tile_entropy_grid = {}
+            self._tile_entropy_grid = np.zeros((self.n_tiles, 2), dtype=np.float) # (idx, chan)
             img = self.get_img()
-            for i in range(3):
-                for j in range(3):
-                    tile = self.get_tile(img, i, j)
-                    self._tile_entropy_grid[(i, j)] = get_entropy(tile)
+            for idx in range(self.n_tiles):
+                tile = self.get_tile(img, idx)
+                self._tile_entropy_grid[idx] = get_entropy(tile)
         return self._tile_entropy_grid
 
     def update_overlay_map(self, other_sdc, tile_scores, overlay_score, tag):
