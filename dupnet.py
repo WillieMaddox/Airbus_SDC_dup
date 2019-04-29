@@ -17,6 +17,9 @@ def save_checkpoint(filepath, model):
 
 def load_checkpoint(filepath):
     checkpoint = torch.load(filepath)
+    # When loading a model on a CPU that was trained with a GPU, pass
+    # torch.device('cpu') to the map_location argument in the torch.load() function.
+    # checkpoint = torch.load(filepath, map_location='cpu')
     model = DupCNN(checkpoint['input_size'],
                    checkpoint['output_size'],
                    checkpoint['conv_layers'],
