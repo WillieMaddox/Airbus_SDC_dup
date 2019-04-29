@@ -1,8 +1,10 @@
 import os
 from shutil import copyfile
 from datetime import datetime
+from collections import Counter
 import numpy as np
 import cv2
+from cv2 import img_hash
 
 EPS = np.finfo(np.float32).eps
 
@@ -116,6 +118,9 @@ def generate_overlay_tag_slices():
             '0202': (sd['00'], sd['22'])}
 
 
+overlay_tag_slices = generate_overlay_tag_slices()
+
+
 def generate_pair_tag_lookup():
     ptl = {}
     for tag1, tag2 in overlay_tag_pairs.items():
@@ -194,6 +199,152 @@ def get_best_model_name(run_dir):
 def get_tile(img, idx, sz=256):
     i, j = tile_idx2ij[idx]
     return img[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
+
+
+def fuzzy_join(tile1, tile2):
+    maxab = np.max(np.stack([tile1, tile2]), axis=0)
+    a = maxab - tile2
+    b = maxab - tile1
+    return a + b
+
+
+def fuzzy_diff(tile1, tile2):
+    ab = fuzzy_join(tile1, tile2)
+    return np.sum(ab)
+
+
+def fuzzy_compare(tile1, tile2):
+    ab = fuzzy_join(tile1, tile2)
+    n = np.prod(ab.shape)
+    return np.sum(255 - ab) / (255 * n)
+
+
+def check_exact_match(img1, img2, img1_overlay_tag):
+    img1_slice = img1[overlay_tag_slices[img1_overlay_tag]]
+    img2_slice = img2[overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]]
+    return np.all(img1_slice == img2_slice)
+
+
+def check_fuzzy_diff(img1, img2, img1_overlay_tag):
+    img1_slice = img1[overlay_tag_slices[img1_overlay_tag]]
+    img2_slice = img2[overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]]
+    return fuzzy_diff(img1_slice, img2_slice)
+
+
+def check_fuzzy_score(img1, img2, img1_overlay_tag):
+    img1_slice = img1[overlay_tag_slices[img1_overlay_tag]]
+    img2_slice = img2[overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]]
+    return fuzzy_compare(img1_slice, img2_slice)
+
+
+def gen_bmh_score(img1, img2, img1_overlay_tag, mode=0):
+    img1_slice = img1[overlay_tag_slices[img1_overlay_tag]]
+    img2_slice = img2[overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]]
+    bmh1 = img_hash.blockMeanHash(img1_slice, mode=mode)
+    bmh2 = img_hash.blockMeanHash(img2_slice, mode=mode)
+    return fuzzy_compare(bmh1, bmh2)
+
+
+def gen_overlay_score(img1, img2, img1_overlay_tag, sz=256, mode=0):
+    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
+    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
+    bmh1_list = []
+    bmh2_list = []
+    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
+        tile1 = get_tile(img1, idx1, sz=sz)
+        tile2 = get_tile(img2, idx2, sz=sz)
+        bmh1 = img_hash.blockMeanHash(tile1, mode=mode)
+        bmh2 = img_hash.blockMeanHash(tile2, mode=mode)
+        bmh1_list.append(bmh1)
+        bmh2_list.append(bmh2)
+    bmh1_arr = np.vstack(bmh1_list)
+    bmh2_arr = np.vstack(bmh2_list)
+    return fuzzy_compare(bmh1_arr, bmh2_arr)
+
+
+def gen_tile_scores(img1, img2, img1_overlay_tag, sz=256, mode=0):
+    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
+    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
+    scores = []
+    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
+        tile1 = get_tile(img1, idx1, sz=sz)
+        tile2 = get_tile(img2, idx2, sz=sz)
+        bmh1 = img_hash.blockMeanHash(tile1, mode=mode)
+        bmh2 = img_hash.blockMeanHash(tile2, mode=mode)
+        score = fuzzy_compare(bmh1, bmh2)
+        scores.append(score)
+    return scores
+
+
+def gen_pixel_scores(img1, img2, img1_overlay_tag, sz=256):
+    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
+    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
+    scores = []
+    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
+        tile1 = get_tile(img1, idx1, sz=sz)
+        tile2 = get_tile(img2, idx2, sz=sz)
+        score = fuzzy_diff(tile1, tile2)
+        scores.append(score)
+    return np.array(scores)
+
+
+def get_overlay_score(img1_id, img2_id, img1_overlay_tag, tile_hash_grids):
+    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
+    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
+    bmh1_list = []
+    bmh2_list = []
+    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
+        bmh1 = tile_hash_grids[img1_id][idx1]
+        bmh2 = tile_hash_grids[img2_id][idx2]
+        bmh1_list.append(bmh1)
+        bmh2_list.append(bmh2)
+    bmh1_arr = np.vstack(bmh1_list)
+    bmh2_arr = np.vstack(bmh2_list)
+    return fuzzy_compare(bmh1_arr, bmh2_arr)
+
+
+def get_tile_scores(img1_id, img2_id, img1_overlay_tag, tile_hash_grids):
+    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
+    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
+    scores = []
+    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
+        bmh1 = tile_hash_grids[img1_id][idx1]
+        bmh2 = tile_hash_grids[img2_id][idx2]
+        score = fuzzy_compare(bmh1, bmh2)
+        scores.append(score)
+    return scores
+
+
+def get_channel_entropy(ctr, img_size=1769472):  # 768x768x3
+    ctr_norm = {k: v / img_size for k, v in sorted(ctr.items())}
+    ctr_entropy = {k: -v * np.log(v) for k, v in ctr_norm.items()}
+    entropy = np.sum([k * v for k, v in ctr_entropy.items()])
+    return entropy
+
+
+def gen_entropy(img):
+    img_grad = np.gradient(img.astype(np.int), axis=(0, 1))
+    entropy_list = []
+    for channel_grad in img_grad:
+        ctr = Counter(np.abs(channel_grad).flatten())
+        entropy_list.append(get_channel_entropy(ctr, img.size))
+    return np.array(entropy_list)
+
+
+def get_entropy_score(img1_id, img2_id, img1_overlay_tag, tile_entropy_grids):
+    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
+    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
+    entropy_list = []
+    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
+        e1 = tile_entropy_grids[img1_id][idx1]
+        e2 = tile_entropy_grids[img2_id][idx2]
+        e1r = e1[0]/(e1[1]+EPS) if e1[0] < e1[1] else e1[1]/(e1[0]+EPS)
+        e2r = e2[0]/(e2[1]+EPS) if e2[0] < e2[1] else e2[1]/(e2[0]+EPS)
+        entropy = e1r/(e2r+EPS) if e1r < e2r else e2r/(e1r+EPS)
+#         entropy = np.linalg.norm(((e1 + e2) / 2))
+#         print(e1, e2, e1r, e2r, entropy)
+        entropy_list.append(entropy)
+    return np.max(entropy_list)
 
 
 def to_hls(bgr):

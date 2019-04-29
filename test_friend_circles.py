@@ -10,16 +10,17 @@ from collections import defaultdict
 from collections import Counter
 from utils import tile_idx2ij, tile_ij2idx
 from utils import normalized_hamming_distance
-from utils import generate_overlay_tag_slices
 from utils import generate_pair_tag_lookup
 from utils import overlay_tag_pairs
 from utils import overlay_tag_maps
+from utils import gen_entropy
+from utils import gen_pixel_scores
+from utils import get_overlay_score
+from utils import get_tile_scores
 from utils import read_image_duplicate_tiles
 from utils import write_image_duplicate_tiles
 from utils import read_image_image_duplicate_tiles
 from utils import update_image_image_duplicate_tiles
-
-overlay_tag_slices = generate_overlay_tag_slices()
 
 pair_tag_lookup = generate_pair_tag_lookup()
 
@@ -46,22 +47,6 @@ def filter_duplicates(img_ids):
     return new_img_ids
 
 
-def get_channel_entropy(ctr, img_size):
-    ctr_norm = {k: v / img_size for k, v in ctr.items()}
-    ctr_entropy = {k: -v * np.log(v) for k, v in ctr_norm.items()}
-    entropy = np.sum([k * v for k, v in ctr_entropy.items()])
-    return entropy
-
-
-def get_entropy(img):
-    img_grad = np.gradient(img.astype(np.int), axis=(0, 1))
-    entropy_list = []
-    for channel_grad in img_grad:
-        ctr = Counter(np.abs(channel_grad).flatten())
-        entropy_list.append(get_channel_entropy(ctr, img.size))
-    return np.array(entropy_list)
-
-
 class SDCImageContainer:
 
     def __init__(self, train_image_dir, **kwargs):
@@ -85,7 +70,6 @@ class SDCImageContainer:
         self.tile_entropy_grids = {}
         self.image_duplicate_tiles = {}
         self.image_image_duplicate_tiles = {}
-        self.image_image_duplicate_tiles_orig = {}
         self.overlay_image_maps = {}
         self.overlay_pixel_scores = {}
         self.minimum_score_threshold = 0.95  # overlay score has to be at least this good before assigning it to an image
@@ -180,7 +164,7 @@ class SDCImageContainer:
                 tile_entropy_grid = np.zeros((self.n_tiles, 2), dtype=np.float)
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
-                    tile_entropy_grid[idx] = get_entropy(tile)
+                    tile_entropy_grid[idx] = gen_entropy(tile)
 
             entropy_records.append({'ImageId': img_id, 'entropy_grid': tile_entropy_grid})  # int
             self.tile_entropy_grids[img_id] = tile_entropy_grid
@@ -253,82 +237,121 @@ class SDCImageContainer:
         path = self.train_image_dir if path is None else path
         return cv2.imread(os.path.join(path, filename))
 
-    def get_tile0(self, img, i, j):
-        return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
-
     def get_tile(self, img, idx):
         i, j = tile_idx2ij[idx]
         return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
 
-    def fuzzy_join(self, tile1, tile2):
-        maxab = np.max(np.stack([tile1, tile2]), axis=0)
-        a = maxab - tile2
-        b = maxab - tile1
-        return a + b
+    def update_overlay_matches(self, img1_id, img2_id, img1_overlay_tag):
 
-    def fuzzy_diff(self, tile1, tile2):
-        ab = self.fuzzy_join(tile1, tile2)
-        return np.sum(ab)
+        overlay_score = get_overlay_score(img1_id, img2_id, img1_overlay_tag, self.tile_bm0hash_grids)
+        if overlay_score < self.minimum_score_threshold:
+            return
 
-    def fuzzy_compare(self, tile1, tile2):
-        ab = self.fuzzy_join(tile1, tile2)
-        n = np.prod(ab.shape)
-        return np.sum(255 - ab) / (255 * n)
+        tile_scores = get_tile_scores(img1_id, img2_id, img1_overlay_tag, self.tile_bm0hash_grids)
+        if min(tile_scores) < self.minimum_score_threshold:
+            return
 
-    def check_exact_match(self, img1, img2, img1_overlay_tag):
-        img1_slice = overlay_tag_slices[img1_overlay_tag]
-        img2_slice = overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]
-        img1_overlay = img1[img1_slice]
-        img2_overlay = img2[img2_slice]
-        is_perfect_score = np.all(img1_overlay == img2_overlay)
-        return is_perfect_score
+        self.matches[(img1_id, img2_id)].append((img1_overlay_tag, overlay_score, tile_scores))
 
-    def get_bmh_score(self, img1, img2, img1_overlay_tag):
-        img1_slice = overlay_tag_slices[img1_overlay_tag]
-        img2_slice = overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]
-        img1_overlay = img1[img1_slice]
-        img2_overlay = img2[img2_slice]
-        bmh1 = img_hash.blockMeanHash(img1_overlay, mode=0)
-        bmh2 = img_hash.blockMeanHash(img2_overlay, mode=0)
-        score = self.fuzzy_compare(bmh1, bmh2)
-        return score
+    def update_overlay_maps(self, img1_id, img2_id, img1_overlay_tag, overlay_score=None, tile_scores=None, pixel_scores=None, entropy_score=None):
 
-    def get_overlay_score(self, img1_id, img2_id, img1_overlay_tag):
-        img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
-        img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
-        bmh1_list = []
-        bmh2_list = []
-        for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
-            bmh1 = self.tile_bm0hash_grids[img1_id][idx1]
-            bmh2 = self.tile_bm0hash_grids[img2_id][idx2]
-            bmh1_list.append(bmh1)
-            bmh2_list.append(bmh2)
-        bmh1_arr = np.vstack(bmh1_list)
-        bmh2_arr = np.vstack(bmh2_list)
-        score = self.fuzzy_compare(bmh1_arr, bmh2_arr)
-        return score
+        overlay_score = overlay_score or get_overlay_score(img1_id, img2_id, img1_overlay_tag, self.tile_bm0hash_grids)
+        if overlay_score < self.minimum_score_threshold:
+            return
 
-    def get_tile_scores(self, img1_id, img2_id, img1_overlay_tag):
-        img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
-        img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
-        scores = []
-        for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
-            bmh1 = self.tile_bm0hash_grids[img1_id][idx1]
-            bmh2 = self.tile_bm0hash_grids[img2_id][idx2]
-            score = self.fuzzy_compare(bmh1, bmh2)
-            scores.append(score)
-        return scores
+        tile_scores = tile_scores or get_tile_scores(img1_id, img2_id, img1_overlay_tag, self.tile_bm0hash_grids)
+        assert len(tile_scores) == len(overlay_tag_maps[img1_overlay_tag])
+        if min(tile_scores) < self.minimum_score_threshold:
+            return
 
-    def get_pixel_scores(self, img1, img2, img1_overlay_tag):
-        img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
-        img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
-        scores = []
-        for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
-            tile1 = self.get_tile(img1, idx1)
-            tile2 = self.get_tile(img2, idx2)
-            score = self.fuzzy_diff(tile1, tile2)
-            scores.append(score)
-        return scores
+        if (img1_id, img2_id) not in self.overlay_image_maps:
+            self.overlay_image_maps[(img1_id, img2_id)] = {}
+        self.overlay_image_maps[(img1_id, img2_id)][img1_overlay_tag] = (overlay_score, tile_scores, pixel_scores, entropy_score)
+
+    def update_image_image_duplicate_tiles(self, img1_id, img2_id):
+        """
+        record tiles from other images that match tiles from this image exactly.
+
+        ImageId0      ImageId1      012345678 012345678
+        ---------------------------------------------------------------
+        012345678.jpg abcdef123.jpg 999999999 999999999  No equal pairs
+        012345678.jpg abcdef123.jpg 099099099 999000000  (0, 3, 6) == (3, 4, 5, 6, 7, 8)
+        012345678.jpg abcdef123.jpg 919399918 938918998  (1, 7) == 4, 3 == 1, 8 == (2, 5, 8)
+        012345678.jpg abcdef123.jpg 012345678 678012345  0 == 3, ..., 3 == 6, ..., 8 == 2
+
+        :param img1_id:
+        :param img2_id:
+        :return:
+        """
+        dup_self1 = self.image_duplicate_tiles[img1_id]
+        dup_self2 = self.image_duplicate_tiles[img2_id]
+        dup_cts1 = Counter(dup_self1)
+        dup_cts2 = Counter(dup_self2)
+
+        img1 = None
+        img2 = None
+
+        dup_idx1 = {c: np.array([idx for idx, tidx in enumerate(dup_self1) if tidx == c]) for c in dup_cts1}
+        dup_idx2 = {c: np.array([idx for idx, tidx in enumerate(dup_self2) if tidx == c]) for c in dup_cts2}
+        dup_tiles1 = np.array([9 if dup_cts1[idx] == 1 else tidx for idx, tidx in enumerate(dup_self1)])
+        dup_tiles2 = np.array([9 if dup_cts2[idx] == 1 else tidx for idx, tidx in enumerate(dup_self2)])
+
+        is_updated = False
+        for idx1 in dup_cts1:
+            for idx2 in dup_cts2:
+                if self.tile_bm0hash_grids[img1_id][idx1] != self.tile_bm0hash_grids[img2_id][idx2]:
+                    continue
+                if img1 is None:
+                    img1 = self.get_img(img1_id)
+                if img2 is None:
+                    img2 = self.get_img(img2_id)
+                if np.any(self.get_tile(img1, idx1) != self.get_tile(img2, idx2)):
+                    continue
+
+                dup_tiles1[dup_idx1[idx1]] = idx1
+                dup_tiles2[dup_idx2[idx2]] = idx1
+
+        if (img1_id, img2_id) not in self.image_image_duplicate_tiles:
+            self.image_image_duplicate_tiles[(img1_id, img2_id)] = (dup_tiles1, dup_tiles2)
+            is_updated = True
+
+        return is_updated
+
+    def compute_stats(self, sdc1, sdc2, img1, img2, img1_overlay_tag):
+
+        stats = {}
+        stats['overlay_tag'] = (img1_overlay_tag, overlay_tag_pairs[img1_overlay_tag])
+        stats['img_id'] = (sdc1.img_id, sdc2.img_id)
+        # stats['overlay_score'] = overlay_score
+        # stats['blockMeanHash0'] = tile_scores
+
+        for algo in hash_algos:
+            stats[algo] = []
+
+        for idx1, idx2 in overlay_tag_maps[img1_overlay_tag]:
+            i, j = tile_idx2ij[idx1]
+            k, l = tile_idx2ij[idx2]
+            tile1 = sdc1.get_tile(img1, i, j)
+            tile2 = sdc2.get_tile(img2, k, l)
+            for name, func in hash_algos.items():
+                # if name == 'blockMeanHash':
+                #     t1 = sdc1.tile_bm0hash_grid[(i, j)]
+                #     t2 = sdc2.tile_bm0hash_grid[(k, l)]
+                # else:
+                t1 = func(tile1)
+                t2 = func(tile2)
+
+                if name == 'colorMomentHash':
+                    b12 = t1 - t2
+                    i12 = np.linalg.norm(b12)
+                else:
+                    b12 = normalized_hamming_distance(t1, t2)
+                    i12 = 1.0 - b12
+
+                stats[name].append(i12)
+                # stats[name] += i12
+
+        return stats
 
     def find_valid_pairings_by_hash(self, hash_id, img_list, overlap_level):
 
@@ -393,118 +416,6 @@ class SDCImageContainer:
 
         return
 
-    def update_overlay_matches(self, img1_id, img2_id, img1_overlay_tag):
-
-        overlay_score = self.get_overlay_score(img1_id, img2_id, img1_overlay_tag)
-        if overlay_score < self.minimum_score_threshold:
-            return
-
-        tile_scores = self.get_tile_scores(img1_id, img2_id, img1_overlay_tag)
-        if min(tile_scores) < self.minimum_score_threshold:
-            return
-
-        self.matches[(img1_id, img2_id)].append((img1_overlay_tag, overlay_score, tile_scores))
-
-    def update_overlay_maps(self, img1_id, img2_id, img1_overlay_tag, overlay_score=None, tile_scores=None, pixel_scores=None, entropy_score=None):
-
-        overlay_score = overlay_score or self.get_overlay_score(img1_id, img2_id, img1_overlay_tag)
-        if overlay_score < self.minimum_score_threshold:
-            return
-
-        tile_scores = tile_scores or self.get_tile_scores(img1_id, img2_id, img1_overlay_tag)
-        assert len(tile_scores) == len(overlay_tag_maps[img1_overlay_tag])
-        if min(tile_scores) < self.minimum_score_threshold:
-            return
-
-        if (img1_id, img2_id) not in self.overlay_image_maps:
-            self.overlay_image_maps[(img1_id, img2_id)] = {}
-        self.overlay_image_maps[(img1_id, img2_id)][img1_overlay_tag] = (overlay_score, tile_scores, pixel_scores, entropy_score)
-
-    def update_image_image_duplicate_tiles(self, img1_id, img2_id):
-        """
-        record tiles from other images that match tiles from this image exactly.
-
-        ImageId0      ImageId1      012345678 012345678
-        ---------------------------------------------------------------
-        012345678.jpg abcdef123.jpg 999999999 999999999  No equal pairs
-        012345678.jpg abcdef123.jpg 099099099 999000000  (0, 3, 6) == (3, 4, 5, 6, 7, 8)
-        012345678.jpg abcdef123.jpg 919399918 938918998  (1, 7) == 4, 3 == 1, 8 == (2, 5, 8)
-        012345678.jpg abcdef123.jpg 012345678 678012345  0 == 3, ..., 3 == 6, ..., 8 == 2
-
-        :param img1_id:
-        :param img2_id:
-        :return:
-        """
-        dup_self1 = self.image_duplicate_tiles[img1_id]
-        dup_self2 = self.image_duplicate_tiles[img2_id]
-        dup_cts1 = Counter(dup_self1)
-        dup_cts2 = Counter(dup_self2)
-
-        img1 = None
-        img2 = None
-
-        dup_idx1 = {c: np.array([idx for idx, tidx in enumerate(dup_self1) if tidx == c]) for c in dup_cts1}
-        dup_idx2 = {c: np.array([idx for idx, tidx in enumerate(dup_self2) if tidx == c]) for c in dup_cts2}
-        dup_tiles1 = np.array([9 if dup_cts1[idx] == 1 else tidx for idx, tidx in enumerate(dup_self1)])
-        dup_tiles2 = np.array([9 if dup_cts2[idx] == 1 else tidx for idx, tidx in enumerate(dup_self2)])
-
-        is_updated = False
-        for t1 in dup_cts1:
-            for t2 in dup_cts2:
-                if self.tile_bm0hash_grids[img1_id][t1] != self.tile_bm0hash_grids[img2_id][t2]:
-                    continue
-                if img1 is None:
-                    img1 = self.get_img(img1_id)
-                if img2 is None:
-                    img2 = self.get_img(img2_id)
-                if np.any(self.get_tile(img1, t1) != self.get_tile(img2, t2)):
-                    continue
-
-                dup_tiles1[dup_idx1[t1]] = t1
-                dup_tiles2[dup_idx2[t2]] = t1
-
-        if (img1_id, img2_id) not in self.image_image_duplicate_tiles:
-            self.image_image_duplicate_tiles[(img1_id, img2_id)] = (dup_tiles1, dup_tiles2)
-            is_updated = True
-
-        return is_updated
-
-    def compute_stats(self, sdc1, sdc2, img1, img2, img1_overlay_tag):
-
-        stats = {}
-        stats['overlay_tag'] = (img1_overlay_tag, overlay_tag_pairs[img1_overlay_tag])
-        stats['img_id'] = (sdc1.img_id, sdc2.img_id)
-        # stats['overlay_score'] = overlay_score
-        # stats['blockMeanHash0'] = tile_scores
-
-        for algo in hash_algos:
-            stats[algo] = []
-
-        for idx1, idx2 in overlay_tag_maps[img1_overlay_tag]:
-            i, j = tile_idx2ij[idx1]
-            k, l = tile_idx2ij[idx2]
-            tile1 = sdc1.get_tile(img1, i, j)
-            tile2 = sdc2.get_tile(img2, k, l)
-            for name, func in hash_algos.items():
-                # if name == 'blockMeanHash':
-                #     t1 = sdc1.tile_bm0hash_grid[(i, j)]
-                #     t2 = sdc2.tile_bm0hash_grid[(k, l)]
-                # else:
-                t1 = func(tile1)
-                t2 = func(tile2)
-
-                if name == 'colorMomentHash':
-                    b12 = t1 - t2
-                    i12 = np.linalg.norm(b12)
-                else:
-                    b12 = normalized_hamming_distance(t1, t2)
-                    i12 = 1.0 - b12
-
-                stats[name].append(i12)
-                # stats[name] += i12
-
-        return stats
-
     def find_valid_pairings_by_search(self, img_list):
         img_tag_scores = {img_id: self.images[img_id].overlay_image_scores for img_id in img_list}
         for ii, img1_id in enumerate(img_list):
@@ -517,7 +428,7 @@ class SDCImageContainer:
                 img2 = sdc2.get_img()
 
                 for img1_overlay_tag, img1_overlay_map in overlay_tag_maps.items():
-                    overlay_scores = self.get_overlay_scores(img1, img2, img1_overlay_tag)
+                    overlay_scores = get_overlay_score(img1, img2, img1_overlay_tag, self.tile_bm0hash_grids)
                     if min(overlay_scores) > self.best_score_threshold:
                         img_tag_scores[img1_id][img1_overlay_tag] = min(overlay_scores)
                         img_tag_scores[img2_id][overlay_tag_pairs[img1_overlay_tag]] = min(overlay_scores)
@@ -584,7 +495,7 @@ class SDCImage:
             img = self.get_img()
             for idx in range(self.n_tiles):
                 tile = self.get_tile(img, idx)
-                self._tile_entropy_grid[idx] = get_entropy(tile)
+                self._tile_entropy_grid[idx] = gen_entropy(tile)
         return self._tile_entropy_grid
 
     def update_overlay_map(self, other_sdc, tile_scores, overlay_score, tag):
@@ -674,7 +585,7 @@ def main():
             img2 = image_cache.setdefault(img2_id, sdcic.get_img(img2_id))
 
             for img1_overlay_tag in img1_overlay_tags:
-                pixel_scores = sdcic.get_pixel_scores(img1, img2, img1_overlay_tag)
+                pixel_scores = gen_pixel_scores(img1, img2, img1_overlay_tag)
                 overlay_pixel_scores_list.append((img1_id, img2_id, img1_overlay_tag, *pixel_scores))
 
             if img1_id_old is None:
