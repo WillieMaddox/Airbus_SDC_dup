@@ -1,5 +1,4 @@
 import os
-import time
 import hashlib
 import numpy as np
 import pandas as pd
@@ -8,7 +7,7 @@ import cv2
 from cv2 import img_hash
 from collections import defaultdict
 from collections import Counter
-from utils import tile_idx2ij, tile_ij2idx
+from utils import tile_idx2ij
 from utils import normalized_hamming_distance
 from utils import generate_pair_tag_lookup
 from utils import overlay_tag_pairs

@@ -245,37 +245,6 @@ def gen_bmh_score(img1, img2, img1_overlay_tag, mode=0):
     return fuzzy_compare(bmh1, bmh2)
 
 
-def gen_overlay_score(img1, img2, img1_overlay_tag, sz=256, mode=0):
-    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
-    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
-    bmh1_list = []
-    bmh2_list = []
-    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
-        tile1 = get_tile(img1, idx1, sz=sz)
-        tile2 = get_tile(img2, idx2, sz=sz)
-        bmh1 = img_hash.blockMeanHash(tile1, mode=mode)
-        bmh2 = img_hash.blockMeanHash(tile2, mode=mode)
-        bmh1_list.append(bmh1)
-        bmh2_list.append(bmh2)
-    bmh1_arr = np.vstack(bmh1_list)
-    bmh2_arr = np.vstack(bmh2_list)
-    return fuzzy_compare(bmh1_arr, bmh2_arr)
-
-
-def gen_tile_scores(img1, img2, img1_overlay_tag, sz=256, mode=0):
-    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
-    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
-    scores = []
-    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
-        tile1 = get_tile(img1, idx1, sz=sz)
-        tile2 = get_tile(img2, idx2, sz=sz)
-        bmh1 = img_hash.blockMeanHash(tile1, mode=mode)
-        bmh2 = img_hash.blockMeanHash(tile2, mode=mode)
-        score = fuzzy_compare(bmh1, bmh2)
-        scores.append(score)
-    return scores
-
-
 def gen_pixel_scores(img1, img2, img1_overlay_tag, sz=256):
     img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
     img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
@@ -298,9 +267,7 @@ def get_overlay_score(img1_id, img2_id, img1_overlay_tag, tile_hash_grids):
         bmh2 = tile_hash_grids[img2_id][idx2]
         bmh1_list.append(bmh1)
         bmh2_list.append(bmh2)
-    bmh1_arr = np.vstack(bmh1_list)
-    bmh2_arr = np.vstack(bmh2_list)
-    return fuzzy_compare(bmh1_arr, bmh2_arr)
+    return fuzzy_compare(np.vstack(bmh1_list), np.vstack(bmh2_list))
 
 
 def get_tile_scores(img1_id, img2_id, img1_overlay_tag, tile_hash_grids):
