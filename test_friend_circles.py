@@ -75,7 +75,7 @@ class SDCImageContainer:
         self.best_score_threshold = 0.99  # after this, don't have to check if better score exists.
         self.matches = defaultdict(list)
 
-    def load_3x3_grids(self, filename_counter, filename_md5hash, filename_bm0hash, filename_entropy, filename_tile_dups):
+    def preprocess_image_properties(self, filename_counter, filename_md5hash, filename_bm0hash, filename_entropy, filename_tile_dups):
         img_counter_grids = {}
         if os.path.exists(filename_counter):
             df = pd.read_pickle(filename_counter)
@@ -524,7 +524,7 @@ def main():
     image_image_duplicate_tiles_file = os.path.join("data", "image_image_duplicate_tiles.txt")
 
     sdcic = SDCImageContainer(train_image_dir)
-    sdcic.load_3x3_grids(
+    sdcic.preprocess_image_properties(
         image_counter_grids_file,
         image_md5hash_grids_file,
         image_bm0hash_grids_file,

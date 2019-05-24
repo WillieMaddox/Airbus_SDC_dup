@@ -16,9 +16,9 @@ chan_gimp_scale_map = {'H': 360, 'L': 200, 'S': 100}
 
 # There are 24 distinct ways a $3\times3$ grid can overlap with another $3\times3$ grid.
 
-ij_pairs_3x3 = [(0, 0), (0, 1), (0, 2),
+ij_pairs_3x3 = ((0, 0), (0, 1), (0, 2),
                 (1, 0), (1, 1), (1, 2),
-                (2, 0), (2, 1), (2, 2)]
+                (2, 0), (2, 1), (2, 2))
 
 tile_idx2ij = {idx: ij for idx, ij in enumerate(ij_pairs_3x3)}
 tile_ij2idx = {ij: idx for idx, ij in enumerate(ij_pairs_3x3)}
