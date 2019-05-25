@@ -23,7 +23,7 @@ ij_pairs_3x3 = ((0, 0), (0, 1), (0, 2),
 tile_idx2ij = {idx: ij for idx, ij in enumerate(ij_pairs_3x3)}
 tile_ij2idx = {ij: idx for idx, ij in enumerate(ij_pairs_3x3)}
 
-overlay_tag_pairs = {
+overlap_tag_pairs = {
     '0022': '0022',
     '0122': '0021',
     '0021': '0122',
@@ -52,7 +52,7 @@ overlay_tag_pairs = {
 }
 
 
-overlay_tag_maps = {
+overlap_tag_maps = {
     '0022': np.array([0, 1, 2, 3, 4, 5, 6, 7, 8]),
     '0122': np.array([1, 2, 4, 5, 7, 8]),
     '0021': np.array([0, 1, 3, 4, 6, 7]),
@@ -80,7 +80,7 @@ overlay_tag_maps = {
     '0202': np.array([2])}
 
 
-def generate_overlay_tag_slices():
+def generate_overlap_tag_slices():
 
     # sd -> short for slice dictionary if that even means anything.
     sd = {
@@ -118,25 +118,25 @@ def generate_overlay_tag_slices():
             '0202': (sd['00'], sd['22'])}
 
 
-overlay_tag_slices = generate_overlay_tag_slices()
+overlap_tag_slices = generate_overlap_tag_slices()
 
 
 def generate_pair_tag_lookup():
     ptl = {}
-    for tag1, tag2 in overlay_tag_pairs.items():
-        for idx1, idx2 in zip(overlay_tag_maps[tag1], overlay_tag_maps[tag2]):
+    for tag1, tag2 in overlap_tag_pairs.items():
+        for idx1, idx2 in zip(overlap_tag_maps[tag1], overlap_tag_maps[tag2]):
             ptl[(idx1, idx2)] = tag1
     return ptl
 
 
-def generate_overlay_tag_nines_mask():
-    overlay_tag_nines_mask = {}
-    for overlay_tag, overlay_map in overlay_tag_maps.items():
+def generate_overlap_tag_nines_mask():
+    overlap_tag_nines_mask = {}
+    for overlap_tag, overlap_map in overlap_tag_maps.items():
         arr9 = np.zeros(9, dtype=np.bool8)
-        for idx in overlay_map:
+        for idx in overlap_map:
             arr9[idx] = True
-        overlay_tag_nines_mask[overlay_tag] = arr9
-    return overlay_tag_nines_mask
+        overlap_tag_nines_mask[overlap_tag] = arr9
+    return overlap_tag_nines_mask
 
 
 
@@ -173,8 +173,27 @@ def int_to_hex(hash_int, hash_len):
     return pad_string(hash_hex, hash_len)
 
 
-def normalized_hamming_distance(hash1, hash2):
-    return np.mean((hash1 != hash2) * 1)
+def get_hamming_distance_score(hash1, hash2, normalize=False, as_score=True):
+    """
+    The args should be the same datatype as the output type of opencv img_hash blockMeanHash.
+    Order does not matter. i.e. hash1, hash2 will produce the same result as hash2, hash1.
+
+    :param hash1: len 32 ndarray of uint8
+    :param hash2: len 32 ndarray of uint8
+    :param normalize: bool. If True, normalize the metric [0, 1]
+    :param as_score: bool. flips the hamming metric. The larger the number, the more perfect the match.
+    :return: float if normalize is True, uint8 otherwise
+    """
+    h1 = np.unpackbits(hash1)
+    h2 = np.unpackbits(hash2)
+
+    hamming_metric = np.sum(h1 ^ h2, dtype=np.int)
+    if as_score:
+        hamming_metric = 256 - hamming_metric
+    if normalize:
+        hamming_metric = hamming_metric / 256
+
+    return hamming_metric
 
 
 def get_best_model_name(run_dir):
@@ -213,73 +232,34 @@ def fuzzy_diff(tile1, tile2):
     return np.sum(ab)
 
 
+def fuzzy_norm(tile1, tile2):
+    ab = fuzzy_join(tile1, tile2)
+    n = 255 * np.sqrt(np.prod(ab.shape))
+    return np.linalg.norm(255 - ab) / n
+
+
 def fuzzy_compare(tile1, tile2):
     ab = fuzzy_join(tile1, tile2)
-    n = np.prod(ab.shape)
-    return np.sum(255 - ab) / (255 * n)
+    n = 255 * np.prod(ab.shape)
+    return np.sum(255 - ab) / n
 
 
-def check_exact_match(img1, img2, img1_overlay_tag):
-    img1_slice = img1[overlay_tag_slices[img1_overlay_tag]]
-    img2_slice = img2[overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]]
+def check_exact_match(img1, img2, img1_overlap_tag):
+    img1_slice = img1[overlap_tag_slices[img1_overlap_tag]]
+    img2_slice = img2[overlap_tag_slices[overlap_tag_pairs[img1_overlap_tag]]]
     return np.all(img1_slice == img2_slice)
 
 
-def check_fuzzy_diff(img1, img2, img1_overlay_tag):
-    img1_slice = img1[overlay_tag_slices[img1_overlay_tag]]
-    img2_slice = img2[overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]]
+def check_fuzzy_diff(img1, img2, img1_overlap_tag):
+    img1_slice = img1[overlap_tag_slices[img1_overlap_tag]]
+    img2_slice = img2[overlap_tag_slices[overlap_tag_pairs[img1_overlap_tag]]]
     return fuzzy_diff(img1_slice, img2_slice)
 
 
-def check_fuzzy_score(img1, img2, img1_overlay_tag):
-    img1_slice = img1[overlay_tag_slices[img1_overlay_tag]]
-    img2_slice = img2[overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]]
+def check_fuzzy_score(img1, img2, img1_overlap_tag):
+    img1_slice = img1[overlap_tag_slices[img1_overlap_tag]]
+    img2_slice = img2[overlap_tag_slices[overlap_tag_pairs[img1_overlap_tag]]]
     return fuzzy_compare(img1_slice, img2_slice)
-
-
-def gen_bmh_score(img1, img2, img1_overlay_tag, mode=0):
-    img1_slice = img1[overlay_tag_slices[img1_overlay_tag]]
-    img2_slice = img2[overlay_tag_slices[overlay_tag_pairs[img1_overlay_tag]]]
-    bmh1 = img_hash.blockMeanHash(img1_slice, mode=mode)
-    bmh2 = img_hash.blockMeanHash(img2_slice, mode=mode)
-    return fuzzy_compare(bmh1, bmh2)
-
-
-def gen_pixel_scores(img1, img2, img1_overlay_tag, sz=256):
-    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
-    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
-    scores = []
-    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
-        tile1 = get_tile(img1, idx1, sz=sz)
-        tile2 = get_tile(img2, idx2, sz=sz)
-        score = fuzzy_diff(tile1, tile2)
-        scores.append(score)
-    return np.array(scores)
-
-
-def get_overlay_score(img1_id, img2_id, img1_overlay_tag, tile_hash_grids):
-    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
-    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
-    bmh1_list = []
-    bmh2_list = []
-    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
-        bmh1 = tile_hash_grids[img1_id][idx1]
-        bmh2 = tile_hash_grids[img2_id][idx2]
-        bmh1_list.append(bmh1)
-        bmh2_list.append(bmh2)
-    return fuzzy_compare(np.vstack(bmh1_list), np.vstack(bmh2_list))
-
-
-def get_tile_scores(img1_id, img2_id, img1_overlay_tag, tile_hash_grids):
-    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
-    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
-    scores = []
-    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
-        bmh1 = tile_hash_grids[img1_id][idx1]
-        bmh2 = tile_hash_grids[img2_id][idx2]
-        score = fuzzy_compare(bmh1, bmh2)
-        scores.append(score)
-    return scores
 
 
 def get_channel_entropy(ctr, img_size=1769472):  # 768x768x3
@@ -387,13 +367,13 @@ def read_duplicate_truth(filename):
 
     with open(filename, 'r') as ifs:
         for line in ifs.readlines():
-            img1_id, img2_id, img1_overlay_tag, is_duplicate = line.strip().split(' ')
+            img1_id, img2_id, img1_overlap_tag, is_duplicate = line.strip().split(' ')
             if img1_id > img2_id:
                 img1_id, img2_id = img2_id, img1_id
-                img1_overlay_tag = overlay_tag_pairs[img1_overlay_tag]
-            if (img1_id, img2_id, img1_overlay_tag) in duplicate_truth:
+                img1_overlap_tag = overlap_tag_pairs[img1_overlap_tag]
+            if (img1_id, img2_id, img1_overlap_tag) in duplicate_truth:
                 continue
-            duplicate_truth[(img1_id, img2_id, img1_overlay_tag)] = int(is_duplicate)
+            duplicate_truth[(img1_id, img2_id, img1_overlap_tag)] = int(is_duplicate)
 
     return duplicate_truth
 
@@ -401,8 +381,8 @@ def read_duplicate_truth(filename):
 def write_duplicate_truth(filename, duplicate_truth):
 
     with open(filename, 'w') as ofs:
-        for (img1_id, img2_id, img1_overlay_tag), is_duplicate in sorted(duplicate_truth.items()):
-            ofs.write(' '.join([img1_id, img2_id, img1_overlay_tag, str(is_duplicate)]))
+        for (img1_id, img2_id, img1_overlap_tag), is_duplicate in sorted(duplicate_truth.items()):
+            ofs.write(' '.join([img1_id, img2_id, img1_overlap_tag, str(is_duplicate)]))
             ofs.write('\n')
 
 
@@ -412,15 +392,15 @@ def update_duplicate_truth(filename, new_truth):
     duplicate_truth = read_duplicate_truth(filename)
     n_lines_in_original = len(duplicate_truth)
 
-    for (img1_id, img2_id, img1_overlay_tag), is_duplicate in new_truth.items():
+    for (img1_id, img2_id, img1_overlap_tag), is_duplicate in new_truth.items():
         if img1_id > img2_id:
             img1_id, img2_id = img2_id, img1_id
-            img1_overlay_tag = overlay_tag_pairs[img1_overlay_tag]
-        if (img1_id, img2_id, img1_overlay_tag) in duplicate_truth:
-            if duplicate_truth[(img1_id, img2_id, img1_overlay_tag)] != is_duplicate:
-                raise ValueError(f"{img1_id} and {img2_id} cannot both be {duplicate_truth[(img1_id, img2_id, img1_overlay_tag)]} and {is_duplicate}")
+            img1_overlap_tag = overlap_tag_pairs[img1_overlap_tag]
+        if (img1_id, img2_id, img1_overlap_tag) in duplicate_truth:
+            if duplicate_truth[(img1_id, img2_id, img1_overlap_tag)] != is_duplicate:
+                raise ValueError(f"{img1_id} and {img2_id} cannot both be {duplicate_truth[(img1_id, img2_id, img1_overlap_tag)]} and {is_duplicate}")
             continue
-        duplicate_truth[(img1_id, img2_id, img1_overlay_tag)] = is_duplicate
+        duplicate_truth[(img1_id, img2_id, img1_overlap_tag)] = is_duplicate
         has_updated = True
 
     if has_updated:
@@ -507,9 +487,9 @@ def update_image_image_duplicate_tiles(filename, new_tiles):
 
         if (img1_id, img2_id) in duplicate_tiles:
             old_tiles1, old_tiles2 = duplicate_tiles[(img1_id, img2_id)]
-            if old_tiles1 != dup_tiles1:
+            if np.any(old_tiles1 != dup_tiles1):
                 raise ValueError(f"{img1_id}: old tiles vs. new tiles: {old_tiles1} != {dup_tiles1}")
-            if old_tiles2 != dup_tiles2:
+            if np.any(old_tiles2 != dup_tiles2):
                 raise ValueError(f"{img2_id}: old tiles vs. new tiles: {old_tiles2} != {dup_tiles2}")
         else:
             duplicate_tiles[(img1_id, img2_id)] = (dup_tiles1, dup_tiles2)
@@ -522,6 +502,8 @@ def update_image_image_duplicate_tiles(filename, new_tiles):
 
 
 def even_split(n_samples, batch_size, split):
+    # split the database into train/val sizes such that
+    # batch_size divides them both evenly.
     # Hack until I can figure out how to ragged end of the database.
     train_percent = split / 100.
     train_pivot = int(n_samples * train_percent)
@@ -535,16 +517,35 @@ def even_split(n_samples, batch_size, split):
 
 
 def create_dataset_from_tiles_and_truth(dup_tiles, dup_truth):
-    overlay_tag_maps0 = {}
-    for img1_overlay_tag, img1_overlay_map in overlay_tag_maps.items():
-        img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
-        overlay_tag_maps0[img1_overlay_tag] = list(zip(img1_overlay_map, img2_overlay_map))
+    overlap_tag_maps0 = {}
+    for img1_overlap_tag, img1_overlap_map in overlap_tag_maps.items():
+        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
+        overlap_tag_maps0[img1_overlap_tag] = list(zip(img1_overlap_map, img2_overlap_map))
 
+    image_image_duplicate_tiles_file = os.path.join("data", "image_image_duplicate_tiles.txt")
+    image_image_duplicate_tiles = read_image_image_duplicate_tiles(image_image_duplicate_tiles_file)
+    ii_missing = 0
     used_ids = set()
-    img_overlay_pairs = {}
-    for (img1_id, img2_id, img1_overlay_tag), is_dup in dup_truth.items():
+    img_overlap_pairs = {}
+    for (img1_id, img2_id, img1_overlap_tag), is_dup in dup_truth.items():
         if is_dup:
-            img_overlay_pairs[(img1_id, img2_id, img1_overlay_tag)] = overlay_tag_maps0[img1_overlay_tag]
+            overlap_maps = overlap_tag_maps0[img1_overlap_tag]
+        else:
+            if (img1_id, img2_id) not in image_image_duplicate_tiles:
+                ii_missing += 1
+                continue
+
+            img1_nine, img2_nine = image_image_duplicate_tiles[(img1_id, img2_id)]
+            overlap_maps = []
+            for idx1, idx2 in overlap_tag_maps0[img1_overlap_tag]:
+                # If these 2 tiles are the same (except for (9, 9)) then
+                # skip them since they are actually dups.
+                if img1_nine[idx1] == img2_nine[idx2] and img1_nine[idx1] != 9:
+                    continue
+                overlap_maps.append((idx1, idx2))
+
+        if len(overlap_maps) > 0:
+            img_overlap_pairs[(img1_id, img2_id, img1_overlap_tag)] = overlap_maps
             used_ids.add(img1_id)
             used_ids.add(img2_id)
 
@@ -552,6 +553,6 @@ def create_dataset_from_tiles_and_truth(dup_tiles, dup_truth):
         if img_id in used_ids:
             continue
         if dup_vector.sum() == 36:  # if dup_vector == [0,1,2,3,4,5,6,7,8], all tiles are unique.
-            img_overlay_pairs[(img_id, img_id, '0022')] = overlay_tag_maps0['0022']
-
-    return img_overlay_pairs
+            img_overlap_pairs[(img_id, img_id, '0022')] = overlap_tag_maps0['0022']
+    print(f'n_missing = {ii_missing}')
+    return img_overlap_pairs

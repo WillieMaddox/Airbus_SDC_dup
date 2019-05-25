@@ -9,7 +9,7 @@ def eq(g, h):
     assert(np.all(g == h))
 
 
-overlay_patterns = (
+overlap_patterns = (
     'single_corner', 'double_vertical', 'double_horizontal', 'double_corner',
     'thin_vertical', 'thin_horizontal', 'thick_vertical', 'thick_horizontal')
 
@@ -87,9 +87,9 @@ for combo in combos['single_corner']:
     h = f[ky[combo['bloc']['h'][0]], ky[combo['bloc']['h'][1]]]
     eq(g[ky[combo['test']['g'][0]], ky[combo['test']['g'][1]]],
        h[ky[combo['test']['h'][0]], ky[combo['test']['h'][1]]])
-    overlay_map = combo['maps']
-    overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-    for idx1, idx2 in overlay_map:
+    overlap_map = combo['maps']
+    overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+    for idx1, idx2 in overlap_map:
         eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 f = np.delete(q, (2, 4), axis=0)
@@ -97,34 +97,34 @@ f = np.delete(f, (2, 4), axis=1)
 
 g, h = f[ul3, ul3], f[lr3, lr3]
 eq(g[2, 2], h[0, 0])
-overlay_map = np.array([[[2, 2], [0, 0]]])
+overlap_map = np.array([[[2, 2], [0, 0]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, lr3], f[ul3, ul3]
 eq(g[0, 0], h[2, 2])
-overlay_map = np.array([[[0, 0], [2, 2]]])
+overlap_map = np.array([[[0, 0], [2, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[ul3, lr3], f[lr3, ul3]
 eq(g[2, 0], h[0, 2])
-overlay_map = np.array([[[2, 0], [0, 2]]])
+overlap_map = np.array([[[2, 0], [0, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, ul3], f[ul3, lr3]
 eq(g[0, 2], h[2, 0])
-overlay_map = np.array([[[0, 2], [2, 0]]])
+overlap_map = np.array([[[0, 2], [2, 0]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 
@@ -142,38 +142,38 @@ f = np.delete(f, (2, 4), axis=1)
 
 g, h = f[ul3, ul3], f[lr3, lr3]
 eq(g[1:, 2], h[:2, 0])
-overlay_map = np.array([[[1, 2], [0, 0]],
+overlap_map = np.array([[[1, 2], [0, 0]],
                         [[2, 2], [1, 0]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, lr3], f[ul3, ul3]
 eq(g[:2, 0], h[1:, 2])
-overlay_map = np.array([[[0, 0], [1, 2]],
+overlap_map = np.array([[[0, 0], [1, 2]],
                         [[1, 0], [2, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[ul3, lr3], f[lr3, ul3]
 eq(g[1:, 0], h[:2, 2])
-overlay_map = np.array([[[1, 0], [0, 2]],
+overlap_map = np.array([[[1, 0], [0, 2]],
                         [[2, 0], [1, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, ul3], f[ul3, lr3]
 eq(g[:2, 2], h[1:, 0])
-overlay_map = np.array([[[0, 2], [1, 0]],
+overlap_map = np.array([[[0, 2], [1, 0]],
                         [[1, 2], [2, 0]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 # double horizontal
@@ -191,38 +191,38 @@ f = np.delete(f, (1, 3, 5), axis=1)
 
 g, h = f[ul3, ul3], f[lr3, lr3]
 eq(g[2, 1:], h[0, :2])
-overlay_map = np.array([[[2, 1], [0, 0]],
+overlap_map = np.array([[[2, 1], [0, 0]],
                         [[2, 2], [0, 1]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, lr3], f[ul3, ul3]
 eq(g[0, :2], h[2, 1:])
-overlay_map = np.array([[[0, 0], [2, 1]],
+overlap_map = np.array([[[0, 0], [2, 1]],
                         [[0, 1], [2, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[ul3, lr3], f[lr3, ul3]
 eq(g[2, :2], h[0, 1:])
-overlay_map = np.array([[[2, 0], [0, 1]],
+overlap_map = np.array([[[2, 0], [0, 1]],
                         [[2, 1], [0, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, ul3], f[ul3, lr3]
 eq(g[0, 1:], h[2, :2])
-overlay_map = np.array([[[0, 1], [2, 0]],
+overlap_map = np.array([[[0, 1], [2, 0]],
                         [[0, 2], [2, 1]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 
@@ -239,22 +239,22 @@ f = np.delete(f, (2, 4), axis=1)
 
 g, h = f[ul3, ul3], f[lr3, lr3]
 eq(g[:, 2], h[:, 0])
-overlay_map = np.array([[[0, 2], [0, 0]],
+overlap_map = np.array([[[0, 2], [0, 0]],
                         [[1, 2], [1, 0]],
                         [[2, 2], [2, 0]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, lr3], f[ul3, ul3]
 eq(g[:, 0], h[:, 2])
-overlay_map = np.array([[[0, 0], [0, 2]],
+overlap_map = np.array([[[0, 0], [0, 2]],
                         [[1, 0], [1, 2]],
                         [[2, 0], [2, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 
@@ -273,22 +273,22 @@ f = np.delete(f, (0, 1, 5, 6), axis=1)
 
 g, h = f[ul3, lr3], f[lr3, ul3]
 eq(g[2, :], h[0, :])
-overlay_map = np.array([[[2, 0], [0, 0]],
+overlap_map = np.array([[[2, 0], [0, 0]],
                         [[2, 1], [0, 1]],
                         [[2, 2], [0, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, ul3], f[ul3, lr3]
 eq(g[0, :], h[2, :])
-overlay_map = np.array([[[0, 0], [2, 0]],
+overlap_map = np.array([[[0, 0], [2, 0]],
                         [[0, 1], [2, 1]],
                         [[0, 2], [2, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 # double corner
@@ -305,46 +305,46 @@ f = np.delete(f, (1, 3, 5), axis=1)
 
 g, h = f[ul3, ul3], f[lr3, lr3]
 eq(g[1:, 1:], h[:2, :2])
-overlay_map = np.array([[[1, 1], [0, 0]],
+overlap_map = np.array([[[1, 1], [0, 0]],
                         [[1, 2], [0, 1]],
                         [[2, 1], [1, 0]],
                         [[2, 2], [1, 1]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, lr3], f[ul3, ul3]
 eq(g[:2, :2], h[1:, 1:])
-overlay_map = np.array([[[0, 0], [1, 1]],
+overlap_map = np.array([[[0, 0], [1, 1]],
                         [[0, 1], [1, 2]],
                         [[1, 0], [2, 1]],
                         [[1, 1], [2, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[ul3, lr3], f[lr3, ul3]
 eq(g[1:, :2], h[:2, 1:])
-overlay_map = np.array([[[1, 0], [0, 1]],
+overlap_map = np.array([[[1, 0], [0, 1]],
                         [[1, 1], [0, 2]],
                         [[2, 0], [1, 1]],
                         [[2, 1], [1, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, ul3], f[ul3, lr3]
 eq(g[:2, 1:], h[1:, :2])
-overlay_map = np.array([[[0, 1], [1, 0]],
+overlap_map = np.array([[[0, 1], [1, 0]],
                         [[0, 2], [1, 1]],
                         [[1, 1], [2, 0]],
                         [[1, 2], [2, 1]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 
@@ -361,28 +361,28 @@ f = np.delete(f, (1, 3, 5), axis=1)
 
 g, h = f[ul3, ul3], f[lr3, lr3]
 eq(g[:, 1:], h[:, :2])
-overlay_map = np.array([[[0, 1], [0, 0]],
+overlap_map = np.array([[[0, 1], [0, 0]],
                         [[0, 2], [0, 1]],
                         [[1, 1], [1, 0]],
                         [[1, 2], [1, 1]],
                         [[2, 1], [2, 0]],
                         [[2, 2], [2, 1]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, lr3], f[ul3, ul3]
 eq(g[:, :2], h[:, 1:])
-overlay_map = np.array([[[0, 0], [0, 1]],
+overlap_map = np.array([[[0, 0], [0, 1]],
                         [[0, 1], [0, 2]],
                         [[1, 0], [1, 1]],
                         [[1, 1], [1, 2]],
                         [[2, 0], [2, 1]],
                         [[2, 1], [2, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 # thick horizontal
@@ -399,26 +399,26 @@ f = np.delete(f, (0, 1, 5, 6), axis=1)
 
 g, h = f[ul3, lr3], f[lr3, ul3]
 eq(g[1:, :], h[:2, :])
-overlay_map = np.array([[[1, 0], [0, 0]],
+overlap_map = np.array([[[1, 0], [0, 0]],
                         [[1, 1], [0, 1]],
                         [[1, 2], [0, 2]],
                         [[2, 0], [1, 0]],
                         [[2, 1], [1, 1]],
                         [[2, 2], [1, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
 
 g, h = f[lr3, ul3], f[ul3, lr3]
 eq(g[:2, :], h[1:, :])
-overlay_map = np.array([[[0, 0], [1, 0]],
+overlap_map = np.array([[[0, 0], [1, 0]],
                         [[0, 1], [1, 1]],
                         [[0, 2], [1, 2]],
                         [[1, 0], [2, 0]],
                         [[1, 1], [2, 1]],
                         [[1, 2], [2, 2]]])
 
-overlay_hash = hashlib.md5(overlay_map.tobytes()).hexdigest()[:6]
-for idx1, idx2 in overlay_map:
+overlap_hash = hashlib.md5(overlap_map.tobytes()).hexdigest()[:6]
+for idx1, idx2 in overlap_map:
     eq(g[idx1[0], idx1[1]], h[idx2[0], idx2[1]])
