@@ -2,6 +2,8 @@ import os
 import hashlib
 import operator
 
+from cachetools import LRUCache
+from cachetools import cachedmethod
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -50,7 +52,7 @@ def filter_duplicates(img_ids):
 
 class SDCImageContainer:
 
-    def __init__(self, train_image_dir, **kwargs):
+    def __init__(self, train_image_dir, cache_size=10000, **kwargs):
         # This class assumes images are square and height and width are divisible by tile_size.
         super().__init__(**kwargs)
         self.train_image_dir = train_image_dir
@@ -79,6 +81,7 @@ class SDCImageContainer:
         self.overlap_bmh_min_score = 1 - ((self.bmh_distance_max + 20) / 256)
         self.overlap_cmh_min_score = 0.80  # cmh score has to be at least this good before assigning it to an image
         self.color_cts_solid = self.sz * self.sz
+        self.cache = LRUCache(maxsize=cache_size)
 
     def preprocess_image_properties(self, filename_counter, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_entropy, filename_tile_dups):
         img_counter_grids = {}
@@ -265,6 +268,7 @@ class SDCImageContainer:
         if dd > 0:
             write_image_duplicate_tiles(filename_tile_dups, duplicate_records)
 
+    @cachedmethod(operator.attrgetter('cache'))
     def get_img(self, filename, path=None):
         path = self.train_image_dir if path is None else path
         return cv2.imread(os.path.join(path, filename))
