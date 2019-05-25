@@ -78,6 +78,7 @@ class SDCImageContainer:
         self.bmh_distance_max = 5
         self.overlap_bmh_min_score = 1 - ((self.bmh_distance_max + 20) / 256)
         self.overlap_cmh_min_score = 0.80  # cmh score has to be at least this good before assigning it to an image
+        self.color_cts_solid = self.sz * self.sz
 
     def preprocess_image_properties(self, filename_counter, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_entropy, filename_tile_dups):
         img_counter_grids = {}
