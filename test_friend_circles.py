@@ -66,6 +66,9 @@ class SDCImageContainer:
         self.tile_bm0hash_len = 32
         self.tile_bm0hash_dtype = np.uint8
         self.tile_bm0hash_grids = {}
+        self.tile_cm0hash_len = 42
+        self.tile_cm0hash_dtype = np.float
+        self.tile_cm0hash_grids = {}
         self.tile_entropy_grids = {}
         self.image_duplicate_tiles = {}
         self.image_image_duplicate_tiles = {}
@@ -75,7 +78,7 @@ class SDCImageContainer:
         self.best_score_threshold = 0.99  # after this, don't have to check if better score exists.
         self.matches = defaultdict(list)
 
-    def preprocess_image_properties(self, filename_counter, filename_md5hash, filename_bm0hash, filename_entropy, filename_tile_dups):
+    def preprocess_image_properties(self, filename_counter, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_entropy, filename_tile_dups):
         img_counter_grids = {}
         if os.path.exists(filename_counter):
             df = pd.read_pickle(filename_counter)
@@ -91,6 +94,11 @@ class SDCImageContainer:
             df = pd.read_pickle(filename_bm0hash)
             img_bm0hash_grids = {key: val for key, val in df.to_dict('split')['data']}
 
+        img_cm0hash_grids = {}
+        if os.path.exists(filename_cm0hash):
+            df = pd.read_pickle(filename_cm0hash)
+            img_cm0hash_grids = {key: val for key, val in df.to_dict('split')['data']}
+
         img_entropy_grids = {}
         if os.path.exists(filename_entropy):
             df = pd.read_pickle(filename_entropy)
@@ -98,15 +106,17 @@ class SDCImageContainer:
 
         img_dups_vec = read_image_duplicate_tiles(filename_tile_dups)
 
-        cc = 0
+        ii = 0
         mm = 0
         hh = 0
+        cc = 0
         ee = 0
         dd = 0
 
         counter_records = []
         md5hash_records = []
         bm0hash_records = []
+        cm0hash_records = []
         entropy_records = []
         duplicate_records = {}
 
@@ -117,7 +127,7 @@ class SDCImageContainer:
 
             prev_counter_grid = img_counter_grids.get(img_id)
             if prev_counter_grid is None:
-                cc += 1
+                ii += 1
                 img = self.get_img(img_id)
                 prev_counter_grid = np.zeros((self.n_tiles, 3, 2), dtype=np.int64)
                 for idx in range(self.n_tiles):
@@ -156,6 +166,18 @@ class SDCImageContainer:
             bm0hash_records.append({'ImageId': img_id, 'bm0hash_grid': tile_bm0hash_grid})  # int
             self.tile_bm0hash_grids[img_id] = tuple(tuple(bm0) for bm0 in tile_bm0hash_grid)
 
+            tile_cm0hash_grid = img_cm0hash_grids.get(img_id)
+            if tile_cm0hash_grid is None:
+                cc += 1
+                img = self.get_img(img_id) if img is None else img
+                tile_cm0hash_grid = np.zeros((self.n_tiles, self.tile_cm0hash_len), dtype=self.tile_cm0hash_dtype)
+                for idx in range(self.n_tiles):
+                    tile = self.get_tile(img, idx)
+                    tile_cm0hash_grid[idx] = img_hash.colorMomentHash(tile)[0]
+
+            cm0hash_records.append({'ImageId': img_id, 'cm0hash_grid': tile_cm0hash_grid})  # float
+            self.tile_cm0hash_grids[img_id] = tile_cm0hash_grid
+
             tile_entropy_grid = img_entropy_grids.get(img_id)
             if tile_entropy_grid is None:
                 ee += 1
@@ -189,10 +211,10 @@ class SDCImageContainer:
             duplicate_records[img_id] = tile_dups_vec
             self.image_duplicate_tiles[img_id] = tile_dups_vec
 
-            if cc >= 5000:
+            if ii >= 5000:
                 df = pd.DataFrame().append(counter_records)
                 df.to_pickle(filename_counter)
-                cc = 0
+                ii = 0
 
             if mm >= 5000:
                 df = pd.DataFrame().append(md5hash_records)
@@ -204,6 +226,11 @@ class SDCImageContainer:
                 df.to_pickle(filename_bm0hash)
                 hh = 0
 
+            if cc >= 5000:
+                df = pd.DataFrame().append(cm0hash_records)
+                df.to_pickle(filename_cm0hash)
+                cc = 0
+
             if ee >= 5000:
                 df = pd.DataFrame().append(entropy_records)
                 df.to_pickle(filename_entropy)
@@ -213,7 +240,7 @@ class SDCImageContainer:
                 write_image_duplicate_tiles(filename_tile_dups, duplicate_records)
                 dd = 0
 
-        if cc > 0:
+        if ii > 0:
             df = pd.DataFrame().append(counter_records)
             df.to_pickle(filename_counter)
 
@@ -224,6 +251,10 @@ class SDCImageContainer:
         if hh > 0:
             df = pd.DataFrame().append(bm0hash_records)
             df.to_pickle(filename_bm0hash)
+
+        if cc > 0:
+            df = pd.DataFrame().append(cm0hash_records)
+            df.to_pickle(filename_cm0hash)
 
         if ee > 0:
             df = pd.DataFrame().append(entropy_records)
@@ -519,6 +550,7 @@ def main():
     image_counter_grids_file = os.path.join("data", "image_counter_grids.pkl")
     image_md5hash_grids_file = os.path.join("data", "image_md5hash_grids.pkl")
     image_bm0hash_grids_file = os.path.join("data", "image_bm0hash_grids.pkl")
+    image_cm0hash_grids_file = os.path.join("data", "image_cm0hash_grids.pkl")
     image_entropy_grids_file = os.path.join("data", "image_entropy_grids.pkl")
     image_duplicate_tiles_file = os.path.join("data", "image_duplicate_tiles.txt")
     image_image_duplicate_tiles_file = os.path.join("data", "image_image_duplicate_tiles.txt")
@@ -528,6 +560,7 @@ def main():
         image_counter_grids_file,
         image_md5hash_grids_file,
         image_bm0hash_grids_file,
+        image_cm0hash_grids_file,
         image_entropy_grids_file,
         image_duplicate_tiles_file)
 
