@@ -481,7 +481,7 @@ class SDCImageContainer:
                 img2 = sdc2.get_img()
 
                 for img1_overlap_tag, img1_overlap_map in overlap_tag_maps.items():
-                    bmh_scores = get_bmh_scores(img1, img2, img1_overlap_tag, self.tile_bm0hash_grids)
+                    bmh_scores = self.get_bmh_scores(img1, img2, img1_overlap_tag)
                     if min(bmh_scores) > self.best_score_threshold:
                         img_tag_scores[img1_id][img1_overlap_tag] = min(bmh_scores)
                         img_tag_scores[img2_id][overlap_tag_pairs[img1_overlap_tag]] = min(bmh_scores)
