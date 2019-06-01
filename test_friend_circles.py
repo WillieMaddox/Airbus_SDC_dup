@@ -27,18 +27,6 @@ EPS = np.finfo(np.float32).eps
 
 pair_tag_lookup = generate_pair_tag_lookup()
 
-hash_algos = {
-    # 'md5SumHash_16': lambda: None,
-    'pHash': img_hash.pHash,
-    # 'md5SumHash': lambda tile: hashlib.md5(tile.tobytes()).hexdigest(),
-    'averageHash': img_hash.averageHash,
-    # 'blockMeanHash0': lambda tile: img_hash.blockMeanHash(tile, mode=0),
-    # 'blockMeanHash1': lambda tile: img_hash.blockMeanHash(tile, mode=1),
-    # 'colorMomentHash': img_hash.colorMomentHash,
-    # 'marrHildrethHash': img_hash.marrHildrethHash,
-    # 'radialVarianceHash': img_hash.radialVarianceHash
-}
-
 
 def filter_duplicates(img_ids):
     df = pd.read_csv('dup_blacklist_6.csv')
@@ -365,9 +353,6 @@ class SDCImageContainer:
         dup_cts1 = Counter(dup_self1)
         dup_cts2 = Counter(dup_self2)
 
-        img1 = None
-        img2 = None
-
         dup_idx1 = {c: np.array([idx for idx, tidx in enumerate(dup_self1) if tidx == c]) for c in dup_cts1}
         dup_idx2 = {c: np.array([idx for idx, tidx in enumerate(dup_self2) if tidx == c]) for c in dup_cts2}
         dup_tiles1 = np.array([9 if dup_cts1[idx] == 1 else tidx for idx, tidx in enumerate(dup_self1)])
@@ -376,14 +361,7 @@ class SDCImageContainer:
         is_updated = False
         for idx1 in dup_cts1:
             for idx2 in dup_cts2:
-                if self.tile_bm0hash_grids[img1_id][idx1] != self.tile_bm0hash_grids[img2_id][idx2]:
-                    continue
-                if img1 is None:
-                    img1 = self.get_img(img1_id)
-                if img2 is None:
-                    img2 = self.get_img(img2_id)
-                # TODO: Don't load images, just read stored md5hash.
-                if np.any(self.get_tile(img1, idx1) != self.get_tile(img2, idx2)):
+                if self.tile_md5hash_grids[img1_id][idx1] != self.tile_md5hash_grids[img2_id][idx2]:
                     continue
 
                 dup_tiles1[dup_idx1[idx1]] = idx1
@@ -394,42 +372,6 @@ class SDCImageContainer:
             is_updated = True
 
         return is_updated
-
-    def compute_stats(self, sdc1, sdc2, img1, img2, img1_overlap_tag):
-
-        stats = {}
-        stats['overlap_tag'] = (img1_overlap_tag, overlap_tag_pairs[img1_overlap_tag])
-        stats['img_id'] = (sdc1.img_id, sdc2.img_id)
-        # stats['overlap_score'] = overlap_score
-        # stats['blockMeanHash0'] = tile_scores
-
-        for algo in hash_algos:
-            stats[algo] = []
-
-        for idx1, idx2 in overlap_tag_maps[img1_overlap_tag]:
-            i, j = tile_idx2ij[idx1]
-            k, l = tile_idx2ij[idx2]
-            tile1 = sdc1.get_tile(img1, i, j)
-            tile2 = sdc2.get_tile(img2, k, l)
-            for name, func in hash_algos.items():
-                # if name == 'blockMeanHash':
-                #     t1 = sdc1.tile_bm0hash_grid[(i, j)]
-                #     t2 = sdc2.tile_bm0hash_grid[(k, l)]
-                # else:
-                t1 = func(tile1)
-                t2 = func(tile2)
-
-                if name == 'colorMomentHash':
-                    b12 = t1 - t2
-                    i12 = np.linalg.norm(b12)
-                else:
-                    b12 = get_hamming_distance_score(t1, t2, normalize=True)
-                    i12 = 1.0 - b12
-
-                stats[name].append(i12)
-                # stats[name] += i12
-
-        return stats
 
     def find_valid_pairings_by_hash(self, hash_id, sorted_hash_dict, level_overlap_tags):
 
@@ -641,6 +583,7 @@ def main():
                 overlap_cmh_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *cmh_scores))
         df = pd.DataFrame(overlap_cmh_tile_scores_list)
         df.to_pickle(overlap_cmh_tile_scores_file)
+
     # Pixel scores:
     # Hamming distance between 2 images pixelwise. Requires reading images so can be slow.
     if not os.path.exists(overlap_pix_tile_scores_file):

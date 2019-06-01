@@ -139,8 +139,6 @@ def generate_overlap_tag_nines_mask():
     return overlap_tag_nines_mask
 
 
-
-
 def get_datetime_now(t=None, fmt='%Y_%m%d_%H%M'):
     """Return timestamp as a string; default: current time, format: YYYY_DDMM_hhmm_ss."""
     if t is None:
