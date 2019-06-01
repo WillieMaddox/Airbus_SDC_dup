@@ -283,11 +283,11 @@ def gen_entropy(img):
     return np.array(entropy_list)
 
 
-def get_entropy_score(img1_id, img2_id, img1_overlay_tag, tile_entropy_grids):
-    img1_overlay_map = overlay_tag_maps[img1_overlay_tag]
-    img2_overlay_map = overlay_tag_maps[overlay_tag_pairs[img1_overlay_tag]]
+def get_entropy_score(img1_id, img2_id, img1_overlap_tag, tile_entropy_grids):
+    img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
+    img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
     entropy_list = []
-    for idx1, idx2 in zip(img1_overlay_map, img2_overlay_map):
+    for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
         e1 = tile_entropy_grids[img1_id][idx1]
         e2 = tile_entropy_grids[img2_id][idx2]
         e1r = e1[0]/(e1[1]+EPS) if e1[0] < e1[1] else e1[1]/(e1[0]+EPS)
@@ -506,21 +506,6 @@ def update_image_image_duplicate_tiles(filename, new_tiles):
         write_image_image_duplicate_tiles(filename, duplicate_tiles)
 
 
-def even_split(n_samples, batch_size, split):
-    # split the database into train/val sizes such that
-    # batch_size divides them both evenly.
-    # Hack until I can figure out how to ragged end of the database.
-    train_percent = split / 100.
-    train_pivot = int(n_samples * train_percent)
-    n_train = train_pivot - train_pivot % batch_size
-
-    valid_percent = 1. - train_percent
-    valid_pivot = int(n_samples * valid_percent)
-    n_valid = valid_pivot - valid_pivot % batch_size
-
-    return n_train, n_valid
-
-
 def create_dataset_from_tiles_and_truth(dup_tiles, dup_truth):
     overlap_tag_maps0 = {}
     for img1_overlap_tag, img1_overlap_map in overlap_tag_maps.items():
@@ -561,3 +546,18 @@ def create_dataset_from_tiles_and_truth(dup_tiles, dup_truth):
             img_overlap_pairs[(img_id, img_id, '0022')] = overlap_tag_maps0['0022']
     print(f'n_missing = {ii_missing}')
     return img_overlap_pairs
+
+
+def even_split(n_samples, batch_size, split):
+    # split the database into train/val sizes such that
+    # batch_size divides them both evenly.
+    # Hack until I can figure out how to ragged end of the database.
+    train_percent = split / 100.
+    train_pivot = int(n_samples * train_percent)
+    n_train = train_pivot - train_pivot % batch_size
+
+    valid_percent = 1. - train_percent
+    valid_pivot = int(n_samples * valid_percent)
+    n_valid = valid_pivot - valid_pivot % batch_size
+
+    return n_train, n_valid
