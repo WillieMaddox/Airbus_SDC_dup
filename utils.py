@@ -129,6 +129,13 @@ def generate_pair_tag_lookup():
     return ptl
 
 
+def generate_tag_pair_lookup():
+    tpl = {}
+    for tag1, tag2 in overlap_tag_pairs.items():
+        tpl[tag1] = list(zip(overlap_tag_maps[tag1], overlap_tag_maps[tag2]))
+    return tpl
+
+
 def generate_overlap_tag_nines_mask():
     overlap_tag_nines_mask = {}
     for overlap_tag, overlap_map in overlap_tag_maps.items():

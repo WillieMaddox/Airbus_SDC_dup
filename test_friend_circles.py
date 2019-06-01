@@ -543,7 +543,7 @@ def main():
         level_overlap_tags = {tag for tag, tiles in overlap_tag_maps.items() if len(tiles) in (n_matching_tiles,)}
         img_ids = os.listdir(train_image_dir)
         # TODO: Use filter for all overlaps here? or just n_matching_tiles?
-        img_ids = filter_duplicates(img_ids)
+        # img_ids = filter_duplicates(img_ids)
 
         hash_dict = defaultdict(set)
         for img_id in tqdm(img_ids):
