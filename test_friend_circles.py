@@ -18,6 +18,7 @@ from utils import overlap_tag_pairs
 from utils import overlap_tag_maps
 from utils import fuzzy_diff
 from utils import gen_entropy
+from utils import gen_pyramid_hash
 from utils import read_image_duplicate_tiles
 from utils import write_image_duplicate_tiles
 from utils import read_image_image_duplicate_tiles
@@ -51,7 +52,9 @@ class SDCImageContainer:
         self.n_tiles = self.n_rows * self.n_cols
         self.tile_score_max = self.sz * self.sz * 3 * 255  # 3 color channels, uint8
         self.tile_slice = slice(8, -8)
-        self.tile_counter_grids = {}
+        self.tile_pyramid_len = 5
+        self.tile_pyramid_dtype = np.float
+        self.tile_pyramid_grids = {}
         self.tile_md5hash_len = 8
         self.tile_md5hash_dtype = f'<U{self.tile_md5hash_len}'
         self.tile_md5hash_grids = {}
@@ -71,11 +74,11 @@ class SDCImageContainer:
         self.color_cts_solid = self.sz * self.sz
         self.cache = LRUCache(maxsize=cache_size)
 
-    def preprocess_image_properties(self, filename_counter, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_entropy, filename_tile_dups):
-        img_counter_grids = {}
-        if os.path.exists(filename_counter):
-            df = pd.read_pickle(filename_counter)
-            img_counter_grids = {key: val for key, val in df.to_dict('split')['data']}
+    def preprocess_image_properties(self, filename_pyramid, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_entropy, filename_tile_dups):
+        img_pyramid_grids = {}
+        if os.path.exists(filename_pyramid):
+            df = pd.read_pickle(filename_pyramid)
+            img_pyramid_grids = {key: val for key, val in df.to_dict('split')['data']}
 
         img_md5hash_grids = {}
         if os.path.exists(filename_md5hash):
@@ -99,14 +102,14 @@ class SDCImageContainer:
 
         img_dups_vec = read_image_duplicate_tiles(filename_tile_dups)
 
-        ii = 0
+        pp = 0
         mm = 0
         hh = 0
         cc = 0
         ee = 0
         dd = 0
 
-        counter_records = []
+        pyramid_records = []
         md5hash_records = []
         bm0hash_records = []
         cm0hash_records = []
@@ -118,22 +121,17 @@ class SDCImageContainer:
 
             img = None
 
-            prev_counter_grid = img_counter_grids.get(img_id)
-            if prev_counter_grid is None:
-                ii += 1
+            tile_pyramid_grid = img_pyramid_grids.get(img_id)
+            if tile_pyramid_grid is None:
+                pp += 1
                 img = self.get_img(img_id)
-                prev_counter_grid = np.zeros((self.n_tiles, 3, 2), dtype=np.int64)
+                tile_pyramid_grid = np.zeros((self.n_tiles, self.tile_pyramid_len), dtype=self.tile_pyramid_dtype)
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
-                    for chan in range(3):
-                        unique, counts = np.unique(tile[:, :, chan].flatten(), return_counts=True)
-                        max_idx = np.argmax(counts)
-                        prev_counter_grid[idx, chan] = np.array([unique[max_idx], counts[max_idx]])
+                    tile_pyramid_grid[idx] = gen_pyramid_hash(tile, self.tile_pyramid_len)
 
-            tile_counter_grid = [tuple(tuple(pcg) for pcg in prev_counter_grid[idx]) for idx in range(self.n_tiles)]
-
-            counter_records.append({'ImageId': img_id, 'counter_grid': prev_counter_grid})  # int
-            self.tile_counter_grids[img_id] = tile_counter_grid
+            pyramid_records.append({'ImageId': img_id, 'pyramid_grid': tile_pyramid_grid})  # float
+            self.tile_pyramid_grids[img_id] = tile_pyramid_grid
 
             tile_md5hash_grid = img_md5hash_grids.get(img_id)
             if tile_md5hash_grid is None:
@@ -204,10 +202,10 @@ class SDCImageContainer:
             duplicate_records[img_id] = tile_dups_vec
             self.image_duplicate_tiles[img_id] = tile_dups_vec
 
-            if ii >= 5000:
-                df = pd.DataFrame().append(counter_records)
-                df.to_pickle(filename_counter)
-                ii = 0
+            if pp >= 500:
+                df = pd.DataFrame().append(pyramid_records)
+                df.to_pickle(filename_pyramid)
+                pp = 0
 
             if mm >= 5000:
                 df = pd.DataFrame().append(md5hash_records)
@@ -233,9 +231,9 @@ class SDCImageContainer:
                 write_image_duplicate_tiles(filename_tile_dups, duplicate_records)
                 dd = 0
 
-        if ii > 0:
-            df = pd.DataFrame().append(counter_records)
-            df.to_pickle(filename_counter)
+        if pp > 0:
+            df = pd.DataFrame().append(pyramid_records)
+            df.to_pickle(filename_pyramid)
 
         if mm > 0:
             df = pd.DataFrame().append(md5hash_records)
@@ -305,16 +303,11 @@ class SDCImageContainer:
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            ctr1 = self.tile_counter_grids[img1_id][idx1]
-            ctr2 = self.tile_counter_grids[img2_id][idx2]
-            score = 0
-            for (color1_val, color1_cts), (color2_val, color2_cts) in zip(ctr1, ctr2):
-                color1_is_not_solid = color1_cts != self.color_cts_solid
-                color2_is_not_solid = color2_cts != self.color_cts_solid
-                if color1_is_not_solid | color2_is_not_solid:
-                    break
-            else:
-                score = 1
+            ctr1 = self.tile_pyramid_grids[img1_id][idx1]
+            ctr2 = self.tile_pyramid_grids[img2_id][idx2]
+            color1_is_not_solid = np.mean(ctr1) != 1.0
+            color2_is_not_solid = np.mean(ctr2) != 1.0
+            score = 0 if color1_is_not_solid | color2_is_not_solid else 1
             scores.append(score)
         return np.array(scores)
 
@@ -511,7 +504,7 @@ class SDCImage:
 def main():
     ship_dir = "data/input"
     train_image_dir = os.path.join(ship_dir, 'train_768')
-    image_counter_grids_file = os.path.join("data", "image_counter_grids.pkl")
+    image_pyramid_grids_file = os.path.join("data", "image_pyramid_grids.pkl")
     image_md5hash_grids_file = os.path.join("data", "image_md5hash_grids.pkl")
     image_bm0hash_grids_file = os.path.join("data", "image_bm0hash_grids.pkl")
     image_cm0hash_grids_file = os.path.join("data", "image_cm0hash_grids.pkl")
@@ -521,7 +514,7 @@ def main():
 
     sdcic = SDCImageContainer(train_image_dir)
     sdcic.preprocess_image_properties(
-        image_counter_grids_file,
+        image_pyramid_grids_file,
         image_md5hash_grids_file,
         image_bm0hash_grids_file,
         image_cm0hash_grids_file,
