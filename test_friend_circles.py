@@ -298,6 +298,17 @@ class SDCImageContainer:
             scores.append(score)
         return np.array(scores)
 
+    def get_pyramid_scores(self, img1_id, img2_id, img1_overlap_tag):
+        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
+        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
+        scores = []
+        for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
+            pyr1 = self.tile_pyramid_grids[img1_id][idx1]
+            pyr2 = self.tile_pyramid_grids[img2_id][idx2]
+            score = np.exp(-np.linalg.norm(pyr1 - pyr2))
+            scores.append(score)
+        return np.array(scores)
+
     def get_solid_color_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
@@ -311,20 +322,31 @@ class SDCImageContainer:
             scores.append(score)
         return np.array(scores)
 
-    def get_entropy_score(self, img1_id, img2_id, img1_overlap_tag):
+    def get_entropy_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
-        entropy_list = []
+        scores = []
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            e1 = self.tile_entropy_grids[img1_id][idx1]
-            e2 = self.tile_entropy_grids[img2_id][idx2]
-            e1r = e1[0] / (e1[1] + EPS) if e1[0] < e1[1] else e1[1] / (e1[0] + EPS)
-            e2r = e2[0] / (e2[1] + EPS) if e2[0] < e2[1] else e2[1] / (e2[0] + EPS)
-            entropy = e1r / (e2r + EPS) if e1r < e2r else e2r / (e1r + EPS)
-            #         entropy = np.linalg.norm(((e1 + e2) / 2))
-            #         print(e1, e2, e1r, e2r, entropy)
-            entropy_list.append(entropy)
-        return np.max(entropy_list)
+            pyr1 = self.tile_pyramid_grids[img1_id][idx1]
+            pyr2 = self.tile_pyramid_grids[img2_id][idx2]
+            score = np.mean((pyr1 + pyr2) / 2.0)
+            scores.append(score)
+        return np.array(scores)
+
+    # def get_entropy_score(self, img1_id, img2_id, img1_overlap_tag):
+    #     img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
+    #     img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
+    #     entropy_list = []
+    #     for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
+    #         e1 = self.tile_entropy_grids[img1_id][idx1]
+    #         e2 = self.tile_entropy_grids[img2_id][idx2]
+    #         e1r = e1[0] / (e1[1] + EPS) if e1[0] < e1[1] else e1[1] / (e1[0] + EPS)
+    #         e2r = e2[0] / (e2[1] + EPS) if e2[0] < e2[1] else e2[1] / (e2[0] + EPS)
+    #         entropy = e1r / (e2r + EPS) if e1r < e2r else e2r / (e1r + EPS)
+    #         #         entropy = np.linalg.norm(((e1 + e2) / 2))
+    #         #         print(e1, e2, e1r, e2r, entropy)
+    #         entropy_list.append(entropy)
+    #     return np.max(entropy_list)
 
     def update_image_image_duplicate_tiles(self, img1_id, img2_id):
         """
@@ -521,14 +543,16 @@ def main():
         image_entropy_grids_file,
         image_duplicate_tiles_file)
 
-    # n_matching_tiles = 9  # 376407 matches 2:40,    259 pixel_scores 00:03
+    n_matching_tiles = 9  # 376407 matches 2:40,    259 pixel_scores 00:03
     # n_matching_tiles = 6  # 376407 matches 3:12,  82823 pixel_scores 16:25
     # n_matching_tiles = 4  # 376407 matches 2:36,  72629 pixel_scores 13:51
-    n_matching_tiles = 3  # 376407 matches 2:43,  75936 pixel_scores 12:40
+    # n_matching_tiles = 3  # 376407 matches 2:43,  75936 pixel_scores 12:40
     # n_matching_tiles = 2  # 376407 matches 2:38, 149106 pixel_scores 20:26
     overlap_bmh_tile_scores_file = os.path.join("data", f"overlap_bmh_tile_scores_{n_matching_tiles}.pkl")
     overlap_pix_tile_scores_file = os.path.join("data", f"overlap_pix_tile_scores_{n_matching_tiles}.pkl")
     overlap_cmh_tile_scores_file = os.path.join("data", f"overlap_cmh_tile_scores_{n_matching_tiles}.pkl")
+    overlap_pyr_tile_scores_file = os.path.join("data", f"overlap_pyr_tile_scores_{n_matching_tiles}.pkl")
+    overlap_enp_tile_scores_file = os.path.join("data", f"overlap_enp_tile_scores_{n_matching_tiles}.pkl")
 
     # blockMeanHash
     if not os.path.exists(overlap_bmh_tile_scores_file):
@@ -587,6 +611,28 @@ def main():
                 overlap_pix_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *pix_scores))
         df = pd.DataFrame(overlap_pix_tile_scores_list)
         df.to_pickle(overlap_pix_tile_scores_file)
+
+    # Pyramid scores:
+    # Exponential of the negative L2 norm between 2 pyramid scores.
+    if not os.path.exists(overlap_pyr_tile_scores_file):
+        overlap_pyr_tile_scores_list = []
+        for (img1_id, img2_id), img1_overlap_tags in tqdm(sorted(overlap_bmh_tile_scores.items())):
+            for img1_overlap_tag in img1_overlap_tags:
+                pyr_scores = sdcic.get_pyramid_scores(img1_id, img2_id, img1_overlap_tag)
+                overlap_pyr_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *pyr_scores))
+        df = pd.DataFrame(overlap_pyr_tile_scores_list)
+        df.to_pickle(overlap_pyr_tile_scores_file)
+
+    # Entropy scores:
+    # Mean of the average between 2 pyramid scores.
+    if not os.path.exists(overlap_enp_tile_scores_file):
+        overlap_enp_tile_scores_list = []
+        for (img1_id, img2_id), img1_overlap_tags in tqdm(sorted(overlap_bmh_tile_scores.items())):
+            for img1_overlap_tag in img1_overlap_tags:
+                enp_scores = sdcic.get_entropy_scores(img1_id, img2_id, img1_overlap_tag)
+                overlap_enp_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *enp_scores))
+        df = pd.DataFrame(overlap_enp_tile_scores_list)
+        df.to_pickle(overlap_enp_tile_scores_file)
 
     sdcic.image_image_duplicate_tiles = read_image_image_duplicate_tiles(image_image_duplicate_tiles_file)
 

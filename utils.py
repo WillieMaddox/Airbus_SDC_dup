@@ -2,6 +2,7 @@ import os
 from shutil import copyfile
 from datetime import datetime
 from collections import Counter
+from functools import lru_cache
 import numpy as np
 import cv2
 from cv2 import img_hash
@@ -14,7 +15,12 @@ chan_cv2_scale_map = {'H': 256, 'L': 256, 'S': 256}
 chan_gimp_scale_map = {'H': 360, 'L': 200, 'S': 100}
 
 
+@lru_cache(maxsize=None)
+def generate_ij_pairs(dim=3):
+    return tuple([(i, j) for i in range(dim) for j in range(dim)])
+
 # There are 24 distinct ways a $3\times3$ grid can overlap with another $3\times3$ grid.
+
 
 ij_pairs_3x3 = ((0, 0), (0, 1), (0, 2),
                 (1, 0), (1, 1), (1, 2),
@@ -283,20 +289,43 @@ def gen_entropy(img):
     return np.array(entropy_list)
 
 
-def get_entropy_score(img1_id, img2_id, img1_overlap_tag, tile_entropy_grids):
-    img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
-    img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
-    entropy_list = []
-    for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-        e1 = tile_entropy_grids[img1_id][idx1]
-        e2 = tile_entropy_grids[img2_id][idx2]
-        e1r = e1[0]/(e1[1]+EPS) if e1[0] < e1[1] else e1[1]/(e1[0]+EPS)
-        e2r = e2[0]/(e2[1]+EPS) if e2[0] < e2[1] else e2[1]/(e2[0]+EPS)
-        entropy = e1r/(e2r+EPS) if e1r < e2r else e2r/(e1r+EPS)
-#         entropy = np.linalg.norm(((e1 + e2) / 2))
-#         print(e1, e2, e1r, e2r, entropy)
-        entropy_list.append(entropy)
-    return np.max(entropy_list)
+def gen_pyramid_hash(tile, tile_power=None):
+
+    def get_sub_tile(tile, i, j, sz=256):
+        return tile[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
+
+    assert tile.shape == (256, 256, 3)
+    if tile_power is None:
+        tile_power = np.log2(256).astype(int)
+
+    # pyramid_pixels = np.zeros((tile_power, 3), dtype=np.float)
+    pyramid_weights = np.zeros((tile_power, 3), dtype=np.float)
+    for ii in range(tile_power):
+        len_sub_tiles = 2 ** ii
+        sub_tile_dim = 256 // len_sub_tiles
+        n_sub_tiles = len_sub_tiles * len_sub_tiles
+        sub_tile_size = sub_tile_dim * sub_tile_dim
+        # pixel1 = np.zeros((n_sub_tiles, 3), dtype=np.uint8)
+        weight1 = np.zeros((n_sub_tiles, 3), dtype=np.int64)
+
+        ij_pairs = generate_ij_pairs(len_sub_tiles)
+        for idx in range(n_sub_tiles):
+            sub_tile = get_sub_tile(tile, *ij_pairs[idx], sub_tile_dim)
+            for chan in range(3):
+                pixel_val, counts = np.unique(sub_tile[:, :, chan].flatten(), return_counts=True)
+                max_idx = np.argmax(counts)
+                # pixel1[idx, chan] = pixel_val[max_idx]
+                weight1[idx, chan] = counts[max_idx]
+
+        # pyramid_pixels[ii] = np.mean(pixel1, axis=0) / 255.
+        pyramid_weights[ii] = np.mean(weight1, axis=0) / sub_tile_size
+
+    # pixel_mean = np.mean(pyramid_pixels, axis=0)
+    # pixel_stdev = np.std(pyramid_pixels, axis=0)
+    # weight_mean = np.mean(pyramid_weights, axis=1)
+    # pyramid_hash = np.hstack([pixel_mean, pixel_stdev, weight_mean])
+
+    return np.mean(pyramid_weights, axis=1)
 
 
 def to_hls(bgr):
