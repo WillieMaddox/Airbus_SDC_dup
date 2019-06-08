@@ -182,6 +182,58 @@ def generate_overlap_tag_nines_mask():
     return overlap_tag_nines_mask
 
 
+def vec2ijpairs(vec, dim0=3):
+    assert len(vec) % dim0 == 0
+    dim1 = len(vec) // dim0
+    ijpairs = np.zeros((len(vec), 2), dtype=int)
+    for i, v in enumerate(vec):
+        ijpairs[i, 0] = v // dim0
+        ijpairs[i, 1] = v % dim1
+    return ijpairs
+
+
+def ijpairs2vec(ijpairs, dim0=3):
+    assert len(ijpairs) % dim0 == 0
+    vec = np.zeros(ijpairs, dtype=int)
+    for i, ijpair in enumerate(ijpairs):
+        vec[i] = ijpair[0] * dim0 + ijpair[1]
+    return vec
+
+
+def convert_nine2tups(dups9):
+    """
+    [0, 1, 0, 0, 0, 1, 1, 0, 0]
+    [(0, 1, 0), (0, 0, 1), (1, 0, 0)]
+    [(0, 1), (1, 2), (2, 0)]
+
+    :param dups9:
+    :return:
+    """
+    if type(dups9[0]) == str:
+        b9 = np.array([int(i) for i in dups9])
+    else:
+        b9 = np.array(dups9)
+    b33 = b9.reshape((3, 3))
+    x2 = np.argwhere(b33)
+    return [tuple(x) for x in x2]
+
+
+def convert_tups2nine(tups):
+    """
+    [(0, 1), (1, 2), (2, 0)]
+    [(0, 1, 0), (0, 0, 1), (1, 0, 0)]
+    [0, 1, 0, 0, 0, 1, 1, 0, 0]
+
+    :param tups:
+    :return:
+    """
+    b33 = np.zeros((3, 3), dtype=int)
+    for i, j in tups:
+        b33[i, j] = 1
+    b9 = b33.reshape(-1)
+    return b9
+
+
 def get_datetime_now(t=None, fmt='%Y_%m%d_%H%M'):
     """Return timestamp as a string; default: current time, format: YYYY_DDMM_hhmm_ss."""
     if t is None:
