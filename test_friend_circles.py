@@ -16,9 +16,10 @@ from utils import get_hamming_distance_score
 from utils import generate_pair_tag_lookup
 from utils import overlap_tag_pairs
 from utils import overlap_tag_maps
+from utils import percent_diff
 from utils import fuzzy_diff
 from utils import gen_entropy
-from utils import gen_pyramid_hash
+from utils import gen_greycop_hash
 from utils import read_image_duplicate_tiles
 from utils import write_image_duplicate_tiles
 from utils import read_image_image_duplicate_tiles
@@ -52,9 +53,9 @@ class SDCImageContainer:
         self.n_tiles = self.n_rows * self.n_cols
         self.tile_score_max = self.sz * self.sz * 3 * 255  # 3 color channels, uint8
         self.tile_slice = slice(8, -8)
-        self.tile_pyramid_len = 5
-        self.tile_pyramid_dtype = np.float
-        self.tile_pyramid_grids = {}
+        self.tile_greycop_len = 5
+        self.tile_greycop_dtype = np.float
+        self.tile_greycop_grids = {}
         self.tile_md5hash_len = 8
         self.tile_md5hash_dtype = f'<U{self.tile_md5hash_len}'
         self.tile_md5hash_grids = {}
@@ -74,11 +75,11 @@ class SDCImageContainer:
         self.color_cts_solid = self.sz * self.sz
         self.cache = LRUCache(maxsize=cache_size)
 
-    def preprocess_image_properties(self, filename_pyramid, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_entropy, filename_tile_dups):
-        img_pyramid_grids = {}
-        if os.path.exists(filename_pyramid):
-            df = pd.read_pickle(filename_pyramid)
-            img_pyramid_grids = {key: val for key, val in df.to_dict('split')['data']}
+    def preprocess_image_properties(self, filename_greycop, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_entropy, filename_tile_dups):
+        img_greycop_grids = {}
+        if os.path.exists(filename_greycop):
+            df = pd.read_pickle(filename_greycop)
+            img_greycop_grids = {key: val for key, val in df.to_dict('split')['data']}
 
         img_md5hash_grids = {}
         if os.path.exists(filename_md5hash):
@@ -109,7 +110,7 @@ class SDCImageContainer:
         ee = 0
         dd = 0
 
-        pyramid_records = []
+        greycop_records = []
         md5hash_records = []
         bm0hash_records = []
         cm0hash_records = []
@@ -121,17 +122,17 @@ class SDCImageContainer:
 
             img = None
 
-            tile_pyramid_grid = img_pyramid_grids.get(img_id)
-            if tile_pyramid_grid is None:
+            tile_greycop_grid = img_greycop_grids.get(img_id)
+            if tile_greycop_grid is None:
                 pp += 1
                 img = self.get_img(img_id)
-                tile_pyramid_grid = np.zeros((self.n_tiles, self.tile_pyramid_len), dtype=self.tile_pyramid_dtype)
+                tile_greycop_grid = np.zeros((self.n_tiles, self.tile_greycop_len), dtype=self.tile_greycop_dtype)
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
-                    tile_pyramid_grid[idx] = gen_pyramid_hash(tile, self.tile_pyramid_len)
+                    tile_greycop_grid[idx] = gen_greycop_hash(tile, self.tile_greycop_len)
 
-            pyramid_records.append({'ImageId': img_id, 'pyramid_grid': tile_pyramid_grid})  # float
-            self.tile_pyramid_grids[img_id] = tile_pyramid_grid
+            greycop_records.append({'ImageId': img_id, 'greycop_grid': tile_greycop_grid})  # float
+            self.tile_greycop_grids[img_id] = tile_greycop_grid
 
             tile_md5hash_grid = img_md5hash_grids.get(img_id)
             if tile_md5hash_grid is None:
@@ -203,8 +204,8 @@ class SDCImageContainer:
             self.image_duplicate_tiles[img_id] = tile_dups_vec
 
             if pp >= 500:
-                df = pd.DataFrame().append(pyramid_records)
-                df.to_pickle(filename_pyramid)
+                df = pd.DataFrame().append(greycop_records)
+                df.to_pickle(filename_greycop)
                 pp = 0
 
             if mm >= 5000:
@@ -232,8 +233,8 @@ class SDCImageContainer:
                 dd = 0
 
         if pp > 0:
-            df = pd.DataFrame().append(pyramid_records)
-            df.to_pickle(filename_pyramid)
+            df = pd.DataFrame().append(greycop_records)
+            df.to_pickle(filename_greycop)
 
         if mm > 0:
             df = pd.DataFrame().append(md5hash_records)
@@ -298,6 +299,17 @@ class SDCImageContainer:
             scores.append(score)
         return np.array(scores)
 
+    def get_greycop_scores(self, img1_id, img2_id, img1_overlap_tag):
+        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
+        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
+        scores = []
+        for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
+            gcm1 = self.tile_greycop_grids[img1_id][idx1]
+            gcm2 = self.tile_greycop_grids[img2_id][idx2]
+            score = percent_diff(gcm1, gcm2)
+            scores.append(score)
+        return np.array(scores)
+
     def get_pyramid_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
@@ -306,19 +318,7 @@ class SDCImageContainer:
             pyr1 = self.tile_pyramid_grids[img1_id][idx1]
             pyr2 = self.tile_pyramid_grids[img2_id][idx2]
             score = np.exp(-np.linalg.norm(pyr1 - pyr2))
-            scores.append(score)
-        return np.array(scores)
-
-    def get_solid_color_scores(self, img1_id, img2_id, img1_overlap_tag):
-        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
-        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
-        scores = []
-        for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            ctr1 = self.tile_pyramid_grids[img1_id][idx1]
-            ctr2 = self.tile_pyramid_grids[img2_id][idx2]
-            color1_is_not_solid = np.mean(ctr1) != 1.0
-            color2_is_not_solid = np.mean(ctr2) != 1.0
-            score = 0 if color1_is_not_solid | color2_is_not_solid else 1
+            # score = max(0.0, 1.0 - np.mean((pyr1 + pyr2) / 2.0))
             scores.append(score)
         return np.array(scores)
 
@@ -512,17 +512,17 @@ class SDCImage:
 def main():
     ship_dir = "data/input"
     train_image_dir = os.path.join(ship_dir, 'train_768')
-    image_pyramid_grids_file = os.path.join("data", "image_pyramid_grids.pkl")
     image_md5hash_grids_file = os.path.join("data", "image_md5hash_grids.pkl")
     image_bm0hash_grids_file = os.path.join("data", "image_bm0hash_grids.pkl")
     image_cm0hash_grids_file = os.path.join("data", "image_cm0hash_grids.pkl")
     image_entropy_grids_file = os.path.join("data", "image_entropy_grids.pkl")
+    image_greycop_grids_file = os.path.join("data", "image_greycop_grids.pkl")
     image_duplicate_tiles_file = os.path.join("data", "image_duplicate_tiles.txt")
     image_image_duplicate_tiles_file = os.path.join("data", "image_image_duplicate_tiles.txt")
 
     sdcic = SDCImageContainer(train_image_dir)
     sdcic.preprocess_image_properties(
-        image_pyramid_grids_file,
+        image_greycop_grids_file,
         image_md5hash_grids_file,
         image_bm0hash_grids_file,
         image_cm0hash_grids_file,
@@ -535,10 +535,10 @@ def main():
     # n_matching_tiles = 3  # 376407 matches 2:43,  75936 pixel_scores 12:40
     # n_matching_tiles = 2  # 376407 matches 2:38, 149106 pixel_scores 20:26
     overlap_bmh_tile_scores_file = os.path.join("data", f"overlap_bmh_tile_scores_{n_matching_tiles}.pkl")
-    overlap_pix_tile_scores_file = os.path.join("data", f"overlap_pix_tile_scores_{n_matching_tiles}.pkl")
     overlap_cmh_tile_scores_file = os.path.join("data", f"overlap_cmh_tile_scores_{n_matching_tiles}.pkl")
-    overlap_pyr_tile_scores_file = os.path.join("data", f"overlap_pyr_tile_scores_{n_matching_tiles}.pkl")
+    overlap_gcm_tile_scores_file = os.path.join("data", f"overlap_gcm_tile_scores_{n_matching_tiles}.pkl")
     overlap_enp_tile_scores_file = os.path.join("data", f"overlap_enp_tile_scores_{n_matching_tiles}.pkl")
+    overlap_pix_tile_scores_file = os.path.join("data", f"overlap_pix_tile_scores_{n_matching_tiles}.pkl")
 
     # blockMeanHash
     if not os.path.exists(overlap_bmh_tile_scores_file):
@@ -587,16 +587,16 @@ def main():
         df = pd.DataFrame(overlap_cmh_tile_scores_list)
         df.to_pickle(overlap_cmh_tile_scores_file)
 
-    # Pyramid scores:
-    # Exponential of the negative L2 norm between 2 pyramid scores.
-    if not os.path.exists(overlap_pyr_tile_scores_file):
-        overlap_pyr_tile_scores_list = []
+    # skimage greycomatrix property scores:
+    # Exponential of the negative L2 norm between 2 greycop scores.
+    if not os.path.exists(overlap_gcm_tile_scores_file):
+        overlap_gcm_tile_scores_list = []
         for (img1_id, img2_id), img1_overlap_tags in tqdm(sorted(overlap_bmh_tile_scores.items())):
             for img1_overlap_tag in img1_overlap_tags:
-                pyr_scores = sdcic.get_pyramid_scores(img1_id, img2_id, img1_overlap_tag)
-                overlap_pyr_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *pyr_scores))
-        df = pd.DataFrame(overlap_pyr_tile_scores_list)
-        df.to_pickle(overlap_pyr_tile_scores_file)
+                gcm_scores = sdcic.get_greycop_scores(img1_id, img2_id, img1_overlap_tag)
+                overlap_gcm_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *gcm_scores))
+        df = pd.DataFrame(overlap_gcm_tile_scores_list)
+        df.to_pickle(overlap_gcm_tile_scores_file)
 
     # Entropy scores:
     # Exponential of the negative L2 norm between 2 entropy scores.
