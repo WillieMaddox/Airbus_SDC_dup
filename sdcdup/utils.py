@@ -313,11 +313,11 @@ def get_tile(img, idx, sz=256):
     return img[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
 
 
-def percent_diff(val1, val2, return_decimal=True):
+def relative_diff(val1, val2, return_percent=False):
     num = val1 - val2
     den = (val1 + val2) / 2.0
     res = np.abs(num / (den + (den == 0)))
-    return res if return_decimal else res * 100.0
+    return res * 100.0 if return_percent else res
 
 
 def fuzzy_join(tile1, tile2):
