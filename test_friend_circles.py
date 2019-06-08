@@ -173,12 +173,12 @@ class SDCImageContainer:
             if tile_entropy_grid is None:
                 ee += 1
                 img = self.get_img(img_id) if img is None else img
-                tile_entropy_grid = np.zeros((self.n_tiles, 2), dtype=np.float)
+                tile_entropy_grid = np.zeros((self.n_tiles, 3), dtype=np.float)
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
                     tile_entropy_grid[idx] = gen_entropy(tile)
 
-            entropy_records.append({'ImageId': img_id, 'entropy_grid': tile_entropy_grid})  # int
+            entropy_records.append({'ImageId': img_id, 'entropy_grid': tile_entropy_grid})  # float
             self.tile_entropy_grids[img_id] = tile_entropy_grid
 
             # Quick lookup just to tell us if any tiles within a single image are exact duplicates.
@@ -327,26 +327,12 @@ class SDCImageContainer:
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            pyr1 = self.tile_pyramid_grids[img1_id][idx1]
-            pyr2 = self.tile_pyramid_grids[img2_id][idx2]
-            score = np.mean((pyr1 + pyr2) / 2.0)
+            enp1 = self.tile_entropy_grids[img1_id][idx1]
+            enp2 = self.tile_entropy_grids[img2_id][idx2]
+            score = np.exp(-np.linalg.norm(enp1 - enp2))
+            # score = np.mean((enp1 + enp2) / 2.0)
             scores.append(score)
         return np.array(scores)
-
-    # def get_entropy_score(self, img1_id, img2_id, img1_overlap_tag):
-    #     img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
-    #     img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
-    #     entropy_list = []
-    #     for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-    #         e1 = self.tile_entropy_grids[img1_id][idx1]
-    #         e2 = self.tile_entropy_grids[img2_id][idx2]
-    #         e1r = e1[0] / (e1[1] + EPS) if e1[0] < e1[1] else e1[1] / (e1[0] + EPS)
-    #         e2r = e2[0] / (e2[1] + EPS) if e2[0] < e2[1] else e2[1] / (e2[0] + EPS)
-    #         entropy = e1r / (e2r + EPS) if e1r < e2r else e2r / (e1r + EPS)
-    #         #         entropy = np.linalg.norm(((e1 + e2) / 2))
-    #         #         print(e1, e2, e1r, e2r, entropy)
-    #         entropy_list.append(entropy)
-    #     return np.max(entropy_list)
 
     def update_image_image_duplicate_tiles(self, img1_id, img2_id):
         """
@@ -601,17 +587,6 @@ def main():
         df = pd.DataFrame(overlap_cmh_tile_scores_list)
         df.to_pickle(overlap_cmh_tile_scores_file)
 
-    # Pixel scores:
-    # Hamming distance between 2 images pixelwise. Requires reading images so can be slow.
-    if not os.path.exists(overlap_pix_tile_scores_file):
-        overlap_pix_tile_scores_list = []
-        for (img1_id, img2_id), img1_overlap_tags in tqdm(sorted(overlap_bmh_tile_scores.items())):
-            for img1_overlap_tag in img1_overlap_tags:
-                pix_scores = sdcic.gen_pixel_scores(img1_id, img2_id, img1_overlap_tag)
-                overlap_pix_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *pix_scores))
-        df = pd.DataFrame(overlap_pix_tile_scores_list)
-        df.to_pickle(overlap_pix_tile_scores_file)
-
     # Pyramid scores:
     # Exponential of the negative L2 norm between 2 pyramid scores.
     if not os.path.exists(overlap_pyr_tile_scores_file):
@@ -624,7 +599,7 @@ def main():
         df.to_pickle(overlap_pyr_tile_scores_file)
 
     # Entropy scores:
-    # Mean of the average between 2 pyramid scores.
+    # Exponential of the negative L2 norm between 2 entropy scores.
     if not os.path.exists(overlap_enp_tile_scores_file):
         overlap_enp_tile_scores_list = []
         for (img1_id, img2_id), img1_overlap_tags in tqdm(sorted(overlap_bmh_tile_scores.items())):
@@ -633,6 +608,17 @@ def main():
                 overlap_enp_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *enp_scores))
         df = pd.DataFrame(overlap_enp_tile_scores_list)
         df.to_pickle(overlap_enp_tile_scores_file)
+
+    # Pixel scores:
+    # Hamming distance between 2 images pixelwise. Requires reading images so can be slow.
+    if not os.path.exists(overlap_pix_tile_scores_file):
+        overlap_pix_tile_scores_list = []
+        for (img1_id, img2_id), img1_overlap_tags in tqdm(sorted(overlap_bmh_tile_scores.items())):
+            for img1_overlap_tag in img1_overlap_tags:
+                pix_scores = sdcic.gen_pixel_scores(img1_id, img2_id, img1_overlap_tag)
+                overlap_pix_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *pix_scores))
+        df = pd.DataFrame(overlap_pix_tile_scores_list)
+        df.to_pickle(overlap_pix_tile_scores_file)
 
     sdcic.image_image_duplicate_tiles = read_image_image_duplicate_tiles(image_image_duplicate_tiles_file)
 

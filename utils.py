@@ -6,6 +6,7 @@ from functools import lru_cache
 import numpy as np
 import cv2
 from cv2 import img_hash
+from skimage.measure import shannon_entropy
 
 EPS = np.finfo(np.float32).eps
 
@@ -301,20 +302,12 @@ def check_fuzzy_score(img1, img2, img1_overlap_tag):
     return fuzzy_compare(img1_slice, img2_slice)
 
 
-def get_channel_entropy(ctr, img_size=1769472):  # 768x768x3
-    ctr_norm = {k: v / img_size for k, v in sorted(ctr.items())}
-    ctr_entropy = {k: -v * np.log(v) for k, v in ctr_norm.items()}
-    entropy = np.sum([k * v for k, v in ctr_entropy.items()])
-    return entropy
+def gen_entropy(tile):
+    entropy_shannon = np.zeros(3)
+    for chan in range(3):
+        entropy_shannon[chan] = shannon_entropy(tile[:, :, chan])
 
-
-def gen_entropy(img):
-    img_grad = np.gradient(img.astype(np.int), axis=(0, 1))
-    entropy_list = []
-    for channel_grad in img_grad:
-        ctr = Counter(np.abs(channel_grad).flatten())
-        entropy_list.append(get_channel_entropy(ctr, img.size))
-    return np.array(entropy_list)
+    return entropy_shannon
 
 
 def gen_pyramid_hash(tile, tile_power=None):
