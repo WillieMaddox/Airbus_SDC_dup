@@ -11,19 +11,19 @@ import cv2
 from cv2 import img_hash
 from collections import defaultdict
 from collections import Counter
-from utils import tile_idx2ij
-from utils import get_hamming_distance_score
-from utils import generate_pair_tag_lookup
-from utils import overlap_tag_pairs
-from utils import overlap_tag_maps
-from utils import percent_diff
-from utils import fuzzy_diff
-from utils import gen_entropy
-from utils import gen_greycop_hash
-from utils import read_image_duplicate_tiles
-from utils import write_image_duplicate_tiles
-from utils import read_image_image_duplicate_tiles
-from utils import update_image_image_duplicate_tiles
+from sdcdup.utils import tile_idx2ij
+from sdcdup.utils import get_hamming_distance_score
+from sdcdup.utils import generate_pair_tag_lookup
+from sdcdup.utils import overlap_tag_pairs
+from sdcdup.utils import overlap_tag_maps
+from sdcdup.utils import percent_diff
+from sdcdup.utils import fuzzy_diff
+from sdcdup.utils import gen_entropy
+from sdcdup.utils import gen_greycop_hash
+from sdcdup.utils import read_image_duplicate_tiles
+from sdcdup.utils import write_image_duplicate_tiles
+from sdcdup.utils import read_image_image_duplicate_tiles
+from sdcdup.utils import update_image_image_duplicate_tiles
 
 EPS = np.finfo(np.float32).eps
 
