@@ -313,11 +313,23 @@ def get_tile(img, idx, sz=256):
     return img[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
 
 
-def relative_diff(val1, val2, return_percent=False):
+def relative_diff(val1, val2, func='max'):
+    funcs = {
+        'mean': lambda x, y: (x + y) / 2.0,
+        'mean_abs': lambda x, y: (np.abs(x) + np.abs(y)) / 2.0,
+        'min': lambda x, y: np.min([x, y], axis=0),
+        'min_abs': lambda x, y: np.min([np.abs(x), np.abs(y)], axis=0),
+        'max': lambda x, y: np.max([x, y], axis=0),
+        'max_abs': lambda x, y: np.max([np.abs(x), np.abs(y)], axis=0),
+    }
+    f = funcs[func]
     num = val1 - val2
-    den = (val1 + val2) / 2.0
-    res = np.abs(num / (den + (den == 0)))
-    return res * 100.0 if return_percent else res
+    den = f(val1, val2)
+    return np.abs(num / (den + (den == 0)))
+
+
+def percent_diff(val1, val2):
+    return relative_diff(val1, val2) * 100
 
 
 def fuzzy_join(tile1, tile2):

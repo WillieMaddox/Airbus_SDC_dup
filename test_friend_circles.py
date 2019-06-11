@@ -16,7 +16,7 @@ from sdcdup.utils import get_hamming_distance_score
 from sdcdup.utils import generate_pair_tag_lookup
 from sdcdup.utils import overlap_tag_pairs
 from sdcdup.utils import overlap_tag_maps
-from sdcdup.utils import percent_diff
+from sdcdup.utils import relative_diff
 from sdcdup.utils import fuzzy_diff
 from sdcdup.utils import gen_entropy
 from sdcdup.utils import gen_greycop_hash
@@ -306,7 +306,7 @@ class SDCImageContainer:
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
             gcm1 = self.tile_greycop_grids[img1_id][idx1]
             gcm2 = self.tile_greycop_grids[img2_id][idx2]
-            score = percent_diff(gcm1, gcm2)
+            score = relative_diff(gcm1, gcm2)
             scores.append(score)
         return np.array(scores)
 
