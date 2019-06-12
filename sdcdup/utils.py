@@ -700,6 +700,11 @@ def create_dataset_from_tiles_and_truth(dup_tiles, dup_truth):
     used_ids = set()
     img_overlap_pairs = {}
     for (img1_id, img2_id, img1_overlap_tag), is_dup in dup_truth.items():
+        if len(set(dup_tiles[img1_id])) <= 5 or len(set(dup_tiles[img2_id])) <= 5:
+            # if more than half the tiles are duplicates of themselves
+            # then probably one of the tiles are mostely white or black
+            continue
+
         if is_dup:
             overlap_maps = overlap_tag_maps0[img1_overlap_tag]
         else:
