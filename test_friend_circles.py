@@ -75,12 +75,7 @@ class SDCImageContainer:
         self.color_cts_solid = self.sz * self.sz
         self.cache = LRUCache(maxsize=cache_size)
 
-    def preprocess_image_properties(self, filename_greycop, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_entropy, filename_tile_dups):
-        img_greycop_grids = {}
-        if os.path.exists(filename_greycop):
-            df = pd.read_pickle(filename_greycop)
-            img_greycop_grids = {key: val for key, val in df.to_dict('split')['data']}
-
+    def preprocess_image_properties(self, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_greycop, filename_entropy, filename_tile_dups):
         img_md5hash_grids = {}
         if os.path.exists(filename_md5hash):
             df = pd.read_pickle(filename_md5hash)
@@ -96,6 +91,11 @@ class SDCImageContainer:
             df = pd.read_pickle(filename_cm0hash)
             img_cm0hash_grids = {key: val for key, val in df.to_dict('split')['data']}
 
+        img_greycop_grids = {}
+        if os.path.exists(filename_greycop):
+            df = pd.read_pickle(filename_greycop)
+            img_greycop_grids = {key: val for key, val in df.to_dict('split')['data']}
+
         img_entropy_grids = {}
         if os.path.exists(filename_entropy):
             df = pd.read_pickle(filename_entropy)
@@ -103,17 +103,17 @@ class SDCImageContainer:
 
         img_dups_vec = read_image_duplicate_tiles(filename_tile_dups)
 
-        pp = 0
         mm = 0
         hh = 0
         cc = 0
+        gg = 0
         ee = 0
         dd = 0
 
-        greycop_records = []
         md5hash_records = []
         bm0hash_records = []
         cm0hash_records = []
+        greycop_records = []
         entropy_records = []
         duplicate_records = {}
 
@@ -122,22 +122,10 @@ class SDCImageContainer:
 
             img = None
 
-            tile_greycop_grid = img_greycop_grids.get(img_id)
-            if tile_greycop_grid is None:
-                pp += 1
-                img = self.get_img(img_id)
-                tile_greycop_grid = np.zeros((self.n_tiles, self.tile_greycop_len), dtype=self.tile_greycop_dtype)
-                for idx in range(self.n_tiles):
-                    tile = self.get_tile(img, idx)
-                    tile_greycop_grid[idx] = gen_greycop_hash(tile, self.tile_greycop_len)
-
-            greycop_records.append({'ImageId': img_id, 'greycop_grid': tile_greycop_grid})  # float
-            self.tile_greycop_grids[img_id] = tile_greycop_grid
-
             tile_md5hash_grid = img_md5hash_grids.get(img_id)
             if tile_md5hash_grid is None:
                 mm += 1
-                img = self.get_img(img_id) if img is None else img
+                img = self.get_img(img_id)
                 tile_md5hash_grid = np.zeros(self.n_tiles, dtype=self.tile_md5hash_dtype)
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
@@ -169,6 +157,18 @@ class SDCImageContainer:
 
             cm0hash_records.append({'ImageId': img_id, 'cm0hash_grid': tile_cm0hash_grid})  # float
             self.tile_cm0hash_grids[img_id] = tile_cm0hash_grid
+
+            tile_greycop_grid = img_greycop_grids.get(img_id)
+            if tile_greycop_grid is None:
+                gg += 1
+                img = self.get_img(img_id) if img is None else img
+                tile_greycop_grid = np.zeros((self.n_tiles, self.tile_greycop_len), dtype=self.tile_greycop_dtype)
+                for idx in range(self.n_tiles):
+                    tile = self.get_tile(img, idx)
+                    tile_greycop_grid[idx] = gen_greycop_hash(tile, self.tile_greycop_len)
+
+            greycop_records.append({'ImageId': img_id, 'greycop_grid': tile_greycop_grid})  # float
+            self.tile_greycop_grids[img_id] = tile_greycop_grid
 
             tile_entropy_grid = img_entropy_grids.get(img_id)
             if tile_entropy_grid is None:
@@ -203,11 +203,6 @@ class SDCImageContainer:
             duplicate_records[img_id] = tile_dups_vec
             self.image_duplicate_tiles[img_id] = tile_dups_vec
 
-            if pp >= 500:
-                df = pd.DataFrame().append(greycop_records)
-                df.to_pickle(filename_greycop)
-                pp = 0
-
             if mm >= 5000:
                 df = pd.DataFrame().append(md5hash_records)
                 df.to_pickle(filename_md5hash)
@@ -223,6 +218,11 @@ class SDCImageContainer:
                 df.to_pickle(filename_cm0hash)
                 cc = 0
 
+            if gg >= 5000:
+                df = pd.DataFrame().append(greycop_records)
+                df.to_pickle(filename_greycop)
+                gg = 0
+
             if ee >= 5000:
                 df = pd.DataFrame().append(entropy_records)
                 df.to_pickle(filename_entropy)
@@ -231,10 +231,6 @@ class SDCImageContainer:
             if dd >= 5000:
                 write_image_duplicate_tiles(filename_tile_dups, duplicate_records)
                 dd = 0
-
-        if pp > 0:
-            df = pd.DataFrame().append(greycop_records)
-            df.to_pickle(filename_greycop)
 
         if mm > 0:
             df = pd.DataFrame().append(md5hash_records)
@@ -247,6 +243,10 @@ class SDCImageContainer:
         if cc > 0:
             df = pd.DataFrame().append(cm0hash_records)
             df.to_pickle(filename_cm0hash)
+
+        if gg > 0:
+            df = pd.DataFrame().append(greycop_records)
+            df.to_pickle(filename_greycop)
 
         if ee > 0:
             df = pd.DataFrame().append(entropy_records)
