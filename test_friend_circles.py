@@ -20,6 +20,7 @@ from sdcdup.utils import relative_diff
 from sdcdup.utils import fuzzy_diff
 from sdcdup.utils import gen_entropy
 from sdcdup.utils import gen_greycop_hash
+from sdcdup.utils import get_issolid_flags
 from sdcdup.utils import read_image_duplicate_tiles
 from sdcdup.utils import write_image_duplicate_tiles
 from sdcdup.utils import read_image_image_duplicate_tiles
@@ -53,9 +54,6 @@ class SDCImageContainer:
         self.n_tiles = self.n_rows * self.n_cols
         self.tile_score_max = self.sz * self.sz * 3 * 255  # 3 color channels, uint8
         self.tile_slice = slice(8, -8)
-        self.tile_greycop_len = 5
-        self.tile_greycop_dtype = np.float
-        self.tile_greycop_grids = {}
         self.tile_md5hash_len = 8
         self.tile_md5hash_dtype = f'<U{self.tile_md5hash_len}'
         self.tile_md5hash_grids = {}
@@ -65,7 +63,11 @@ class SDCImageContainer:
         self.tile_cm0hash_len = 42
         self.tile_cm0hash_dtype = np.float
         self.tile_cm0hash_grids = {}
+        self.tile_greycop_len = 5
+        self.tile_greycop_dtype = np.float
+        self.tile_greycop_grids = {}
         self.tile_entropy_grids = {}
+        self.tile_issolid_grids = {}
         self.image_duplicate_tiles = {}
         self.image_image_duplicate_tiles = {}
         self.matches = {}
@@ -75,7 +77,7 @@ class SDCImageContainer:
         self.color_cts_solid = self.sz * self.sz
         self.cache = LRUCache(maxsize=cache_size)
 
-    def preprocess_image_properties(self, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_greycop, filename_entropy, filename_tile_dups):
+    def preprocess_image_properties(self, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_greycop, filename_entropy, filename_issolid, filename_tile_dups):
         img_md5hash_grids = {}
         if os.path.exists(filename_md5hash):
             df = pd.read_pickle(filename_md5hash)
@@ -101,6 +103,11 @@ class SDCImageContainer:
             df = pd.read_pickle(filename_entropy)
             img_entropy_grids = {key: val for key, val in df.to_dict('split')['data']}
 
+        img_issolid_grids = {}
+        if os.path.exists(filename_issolid):
+            df = pd.read_pickle(filename_issolid)
+            img_issolid_grids = {key: val for key, val in df.to_dict('split')['data']}
+
         img_dups_vec = read_image_duplicate_tiles(filename_tile_dups)
 
         mm = 0
@@ -108,6 +115,7 @@ class SDCImageContainer:
         cc = 0
         gg = 0
         ee = 0
+        ss = 0
         dd = 0
 
         md5hash_records = []
@@ -115,6 +123,7 @@ class SDCImageContainer:
         cm0hash_records = []
         greycop_records = []
         entropy_records = []
+        issolid_records = []
         duplicate_records = {}
 
         img_ids = os.listdir(self.train_image_dir)
@@ -182,6 +191,18 @@ class SDCImageContainer:
             entropy_records.append({'ImageId': img_id, 'entropy_grid': tile_entropy_grid})  # float
             self.tile_entropy_grids[img_id] = tile_entropy_grid
 
+            tile_issolid_grid = img_issolid_grids.get(img_id)
+            if tile_issolid_grid is None:
+                ss += 1
+                img = self.get_img(img_id) if img is None else img
+                tile_issolid_grid = np.zeros((self.n_tiles, 3), dtype=np.int)
+                for idx in range(self.n_tiles):
+                    tile = self.get_tile(img, idx)
+                    tile_issolid_grid[idx] = get_issolid_flags(tile)
+
+            issolid_records.append({'ImageId': img_id, 'issolid_grid': tile_issolid_grid})  # int
+            self.tile_issolid_grids[img_id] = tile_issolid_grid
+
             # Quick lookup just to tell us if any tiles within a single image are exact duplicates.
             tile_dups_vec = img_dups_vec.get(img_id)
             if tile_dups_vec is None:
@@ -228,6 +249,11 @@ class SDCImageContainer:
                 df.to_pickle(filename_entropy)
                 ee = 0
 
+            if ss >= 5000:
+                df = pd.DataFrame().append(issolid_records)
+                df.to_pickle(filename_issolid)
+                ss = 0
+
             if dd >= 5000:
                 write_image_duplicate_tiles(filename_tile_dups, duplicate_records)
                 dd = 0
@@ -251,6 +277,10 @@ class SDCImageContainer:
         if ee > 0:
             df = pd.DataFrame().append(entropy_records)
             df.to_pickle(filename_entropy)
+
+        if ss > 0:
+            df = pd.DataFrame().append(issolid_records)
+            df.to_pickle(filename_issolid)
 
         if dd > 0:
             write_image_duplicate_tiles(filename_tile_dups, duplicate_records)
@@ -515,18 +545,20 @@ def main():
     image_md5hash_grids_file = os.path.join("data", "image_md5hash_grids.pkl")
     image_bm0hash_grids_file = os.path.join("data", "image_bm0hash_grids.pkl")
     image_cm0hash_grids_file = os.path.join("data", "image_cm0hash_grids.pkl")
-    image_entropy_grids_file = os.path.join("data", "image_entropy_grids.pkl")
     image_greycop_grids_file = os.path.join("data", "image_greycop_grids.pkl")
+    image_entropy_grids_file = os.path.join("data", "image_entropy_grids.pkl")
+    image_issolid_grids_file = os.path.join("data", "image_issolid_grids.pkl")
     image_duplicate_tiles_file = os.path.join("data", "image_duplicate_tiles.txt")
     image_image_duplicate_tiles_file = os.path.join("data", "image_image_duplicate_tiles.txt")
 
     sdcic = SDCImageContainer(train_image_dir)
     sdcic.preprocess_image_properties(
-        image_greycop_grids_file,
         image_md5hash_grids_file,
         image_bm0hash_grids_file,
         image_cm0hash_grids_file,
+        image_greycop_grids_file,
         image_entropy_grids_file,
+        image_issolid_grids_file,
         image_duplicate_tiles_file)
 
     n_matching_tiles = 9  # 376407 matches 2:40,    259 pixel_scores 00:03

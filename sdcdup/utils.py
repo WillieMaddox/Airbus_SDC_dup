@@ -374,6 +374,15 @@ def check_fuzzy_score(img1, img2, img1_overlap_tag):
     return fuzzy_compare(img1_slice, img2_slice)
 
 
+def get_issolid_flags(tile):
+    issolid_flags = np.array([-1, -1, -1])
+    for chan in range(3):
+        pix = np.unique(tile[:, :, chan].flatten())
+        if len(pix) == 1:
+            issolid_flags[chan] = pix[0]
+    return issolid_flags
+
+
 def gen_entropy(tile):
     entropy_shannon = np.zeros(3)
     for chan in range(3):
