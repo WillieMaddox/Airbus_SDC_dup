@@ -547,10 +547,14 @@ def backup_file(filename, backup_str=None):
 
 
 def read_duplicate_truth(filename):
+    """
+    Reads files with the following line format,
+    "73fec0637.jpg 9a2f9d347.jpg 0022 0"
 
+    :param filename:
+    :return:
+    """
     duplicate_truth = {}
-    if not os.path.exists(filename):
-        return duplicate_truth
 
     with open(filename, 'r') as ifs:
         for line in ifs.readlines():
@@ -565,21 +569,49 @@ def read_duplicate_truth(filename):
     return duplicate_truth
 
 
+def load_duplicate_truth(filepath='data', filename='duplicate_truth.txt', from_chunks=False):
+    """
+    Load in the main single file (duplicate_truth.txt) or load and concatenate all chunk_truth files.
+    Should get the same result either way.
+
+    :param filepath: str, path to filename or chunk files.
+    :param filename: str, name of complete truth file.
+    :param from_chunks: bool, If true, load truth from chunk files.
+    :return: dict
+    """
+    duplicate_truth = None
+
+    if from_chunks:
+        chunk_truth = {}
+        for fname in sorted(os.listdir(filepath)):
+            if not fname.startswith('chunk_truth_'):
+                continue
+            chunk_truth.update(read_duplicate_truth(os.path.join(filepath, fname)))
+
+        duplicate_truth = {}
+        for k, v in sorted(chunk_truth.items()):
+            duplicate_truth[k] = v
+    else:
+        filename = os.path.join(filepath, filename)
+        if os.path.exists(filename):
+            duplicate_truth = read_duplicate_truth(filename)
+
+    return duplicate_truth
+
+
 def write_duplicate_truth(filename, duplicate_truth):
 
     with open(filename, 'w') as ofs:
         for (img1_id, img2_id, img1_overlap_tag), is_duplicate in sorted(duplicate_truth.items()):
-            ofs.write(' '.join([img1_id, img2_id, img1_overlap_tag, str(is_duplicate)]))
-            ofs.write('\n')
+            ofs.write(' '.join([img1_id, img2_id, img1_overlap_tag, str(is_duplicate)]) + '\n')
 
 
-def update_duplicate_truth(filename, new_truth):
+def update_duplicate_truth(pre_chunk_truth, filepath='data', filename='duplicate_truth.txt'):
 
-    has_updated = False
-    duplicate_truth = read_duplicate_truth(filename)
-    n_lines_in_original = len(duplicate_truth)
+    duplicate_truth = load_duplicate_truth(filepath=filepath, filename=filename, from_chunks=False)
 
-    for (img1_id, img2_id, img1_overlap_tag), is_duplicate in new_truth.items():
+    chunk_truth = {}
+    for (img1_id, img2_id, img1_overlap_tag), is_duplicate in pre_chunk_truth.items():
         if img1_id > img2_id:
             img1_id, img2_id = img2_id, img1_id
             img1_overlap_tag = overlap_tag_pairs[img1_overlap_tag]
@@ -587,13 +619,25 @@ def update_duplicate_truth(filename, new_truth):
             if duplicate_truth[(img1_id, img2_id, img1_overlap_tag)] != is_duplicate:
                 raise ValueError(f"{img1_id} and {img2_id} cannot both be {duplicate_truth[(img1_id, img2_id, img1_overlap_tag)]} and {is_duplicate}")
             continue
-        duplicate_truth[(img1_id, img2_id, img1_overlap_tag)] = is_duplicate
-        has_updated = True
+        if (img1_id, img2_id, img1_overlap_tag) in chunk_truth:
+            continue
+        chunk_truth[(img1_id, img2_id, img1_overlap_tag)] = int(is_duplicate)
 
-    if has_updated:
-        backup_str = pad_string(str(n_lines_in_original), 8)
-        backup_file(filename, backup_str)
-        write_duplicate_truth(filename, duplicate_truth)
+    if len(chunk_truth) > 0:
+
+        # First save chunk to a new file.
+        datetime_now = get_datetime_now()
+        n_lines_in_chunk = len(chunk_truth)
+        n_lines_in_chunk_str = pad_string(str(n_lines_in_chunk), 6)
+        chunk_filename = '_'.join(['chunk_truth', datetime_now, n_lines_in_chunk_str]) + '.txt'
+        write_duplicate_truth(os.path.join(filepath, chunk_filename), chunk_truth)
+
+        # Then update the duplicate_truth.txt file.
+        chunk_truth = dict(**duplicate_truth, **chunk_truth)
+        duplicate_truth = {}
+        for k, v in sorted(chunk_truth.items()):
+            duplicate_truth[k] = v
+        write_duplicate_truth(os.path.join(filepath, filename), duplicate_truth)
 
 
 def read_image_duplicate_tiles(filename):
