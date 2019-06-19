@@ -578,7 +578,7 @@ def read_duplicate_truth(filename):
     return duplicate_truth
 
 
-def load_duplicate_truth(filepath='data', filename='duplicate_truth.txt', from_chunks=False):
+def load_duplicate_truth(filepath='data', filename='duplicate_truth.txt', from_chunks=True, chunk_type='all'):
     """
     Load in the main single file (duplicate_truth.txt) or load and concatenate all chunk_truth files.
     Should get the same result either way.
@@ -586,19 +586,27 @@ def load_duplicate_truth(filepath='data', filename='duplicate_truth.txt', from_c
     :param filepath: str, path to filename or chunk files.
     :param filename: str, name of complete truth file.
     :param from_chunks: bool, If true, load truth from chunk files.
+    :param chunk_type: str, if 'manual' load the verified truth only, if 'auto' load the automatic, otherwise load both.
     :return: dict
     """
+
+    chunk_prefix = 'chunk_'
+    if chunk_type == 'manual':
+        chunk_prefix += 'truth_'
+    elif chunk_type == 'auto':
+        chunk_prefix += 'auto_'
+
     duplicate_truth = None
 
     if from_chunks:
-        chunk_truth = {}
+        chunk = {}
         for fname in sorted(os.listdir(filepath)):
-            if not fname.startswith('chunk_truth_'):
+            if not fname.startswith(chunk_prefix):
                 continue
-            chunk_truth.update(read_duplicate_truth(os.path.join(filepath, fname)))
+            chunk.update(read_duplicate_truth(os.path.join(filepath, fname)))
 
         duplicate_truth = {}
-        for k, v in sorted(chunk_truth.items()):
+        for k, v in sorted(chunk.items()):
             duplicate_truth[k] = v
     else:
         filename = os.path.join(filepath, filename)
@@ -615,38 +623,38 @@ def write_duplicate_truth(filename, duplicate_truth):
             ofs.write(' '.join([img1_id, img2_id, img1_overlap_tag, str(is_duplicate)]) + '\n')
 
 
-def update_duplicate_truth(pre_chunk_truth, filepath='data', filename='duplicate_truth.txt'):
+def update_duplicate_truth(pre_chunk, filepath='data', filename='duplicate_truth.txt', auto=True):
 
-    duplicate_truth = load_duplicate_truth(filepath=filepath, filename=filename, from_chunks=False)
+    duplicate_truth = load_duplicate_truth(filepath=filepath, filename=filename)
 
-    chunk_truth = {}
-    for (img1_id, img2_id, img1_overlap_tag), is_duplicate in pre_chunk_truth.items():
-        if img1_id > img2_id:
-            img1_id, img2_id = img2_id, img1_id
-            img1_overlap_tag = overlap_tag_pairs[img1_overlap_tag]
+    chunk = {}
+    for (img1_id, img2_id, img1_overlap_tag), is_duplicate in pre_chunk.items():
         if (img1_id, img2_id, img1_overlap_tag) in duplicate_truth:
             if duplicate_truth[(img1_id, img2_id, img1_overlap_tag)] != is_duplicate:
-                raise ValueError(f"{img1_id} and {img2_id} cannot both be {duplicate_truth[(img1_id, img2_id, img1_overlap_tag)]} and {is_duplicate}")
+                raise ValueError(f"({img1_id}, {img2_id}, {img1_overlap_tag}) cannot both be {duplicate_truth[(img1_id, img2_id, img1_overlap_tag)]} and {is_duplicate}")
             continue
-        if (img1_id, img2_id, img1_overlap_tag) in chunk_truth:
+        if (img1_id, img2_id, img1_overlap_tag) in chunk:
             continue
-        chunk_truth[(img1_id, img2_id, img1_overlap_tag)] = int(is_duplicate)
+        chunk[(img1_id, img2_id, img1_overlap_tag)] = int(is_duplicate)
 
-    if len(chunk_truth) > 0:
+    if len(chunk) > 0:
 
         # First save chunk to a new file.
+        chunk_type = 'auto' if auto else 'truth'
         datetime_now = get_datetime_now()
-        n_lines_in_chunk = len(chunk_truth)
+        n_lines_in_chunk = len(chunk)
         n_lines_in_chunk_str = pad_string(str(n_lines_in_chunk), 6)
-        chunk_filename = '_'.join(['chunk_truth', datetime_now, n_lines_in_chunk_str]) + '.txt'
-        write_duplicate_truth(os.path.join(filepath, chunk_filename), chunk_truth)
+        chunk_filename = '_'.join(['chunk', chunk_type, datetime_now, n_lines_in_chunk_str]) + '.txt'
+        write_duplicate_truth(os.path.join(filepath, chunk_filename), chunk)
 
         # Then update the duplicate_truth.txt file.
-        chunk_truth = dict(**duplicate_truth, **chunk_truth)
+        chunk.update(duplicate_truth)
         duplicate_truth = {}
-        for k, v in sorted(chunk_truth.items()):
+        for k, v in sorted(chunk.items()):
             duplicate_truth[k] = v
         write_duplicate_truth(os.path.join(filepath, filename), duplicate_truth)
+
+        return duplicate_truth
 
 
 def read_image_duplicate_tiles(filename):
@@ -741,36 +749,26 @@ def update_image_image_duplicate_tiles(filename, new_tiles):
         write_image_image_duplicate_tiles(filename, duplicate_tiles)
 
 
-def create_dataset_from_tiles_and_truth(dup_tiles, dup_truth):
-    overlap_tag_maps0 = {}
-    for img1_overlap_tag, img1_overlap_map in overlap_tag_maps.items():
-        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
-        overlap_tag_maps0[img1_overlap_tag] = list(zip(img1_overlap_map, img2_overlap_map))
+def create_dataset_from_tiles_and_truth(dup_truth, sdcic):
 
-    image_image_duplicate_tiles_file = os.path.join("data", "image_image_duplicate_tiles.txt")
-    image_image_duplicate_tiles = read_image_image_duplicate_tiles(image_image_duplicate_tiles_file)
-    ii_missing = 0
+    tpl = generate_tag_pair_lookup()
+
     used_ids = set()
     img_overlap_pairs = {}
     for (img1_id, img2_id, img1_overlap_tag), is_dup in dup_truth.items():
-        if len(set(dup_tiles[img1_id])) <= 5 or len(set(dup_tiles[img2_id])) <= 5:
+        if len(set(sdcic.tile_md5hash_grids[img1_id])) <= 5 or len(set(sdcic.tile_md5hash_grids[img2_id])) <= 5:
             # if more than half the tiles are duplicates of themselves
-            # then probably one of the tiles are mostely white or black
+            # then probably one of the tiles are mostly white or black
             continue
 
         if is_dup:
-            overlap_maps = overlap_tag_maps0[img1_overlap_tag]
+            overlap_maps = tpl[img1_overlap_tag]
         else:
-            if (img1_id, img2_id) not in image_image_duplicate_tiles:
-                ii_missing += 1
-                continue
-
-            img1_nine, img2_nine = image_image_duplicate_tiles[(img1_id, img2_id)]
             overlap_maps = []
-            for idx1, idx2 in overlap_tag_maps0[img1_overlap_tag]:
-                # If these 2 tiles are the same (except for (9, 9)) then
+            for idx1, idx2 in tpl[img1_overlap_tag]:
+                # If 2 tiles are the same (except for (9, 9)) then
                 # skip them since they are actually dups.
-                if img1_nine[idx1] == img2_nine[idx2] and img1_nine[idx1] != 9:
+                if sdcic.tile_md5hash_grids[img1_id][idx1] == sdcic.tile_md5hash_grids[img2_id][idx2]:
                     continue
                 overlap_maps.append((idx1, idx2))
 
@@ -779,12 +777,12 @@ def create_dataset_from_tiles_and_truth(dup_tiles, dup_truth):
             used_ids.add(img1_id)
             used_ids.add(img2_id)
 
-    for img_id, dup_vector in dup_tiles.items():
+    for img_id in sdcic.tile_md5hash_grids:
         if img_id in used_ids:
             continue
-        if dup_vector.sum() == 36:  # if dup_vector == [0,1,2,3,4,5,6,7,8], all tiles are unique.
-            img_overlap_pairs[(img_id, img_id, '0022')] = overlap_tag_maps0['0022']
-    print(f'n_missing = {ii_missing}')
+        if len(set(sdcic.tile_md5hash_grids[img_id])) == 9:  # if all tiles are unique.
+            img_overlap_pairs[(img_id, img_id, '0022')] = tpl['0022']
+
     return img_overlap_pairs
 
 
