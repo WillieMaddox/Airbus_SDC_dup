@@ -691,64 +691,6 @@ def write_image_duplicate_tiles(filename, dup_tiles):
             ofs.write(''.join(list(map(str, dup_tiles1))) + '\n')
 
 
-def read_image_image_duplicate_tiles(filename):
-    """
-    file format: img1_id img2_id 919399918 938918998
-    dup_tiles format: {(img1_id, img2_id): ((9, 1, 9, 3, 9, 9, 9, 1, 8), (9, 3, 8, 9, 1, 8, 9, 9, 8))}
-    :param filename:
-    :return:
-    """
-    dup_tiles = {}
-    if not os.path.exists(filename):
-        return dup_tiles
-
-    with open(filename, 'r') as ifs:
-        for line in ifs.readlines():
-            img1_id, img2_id, dup_tiles1, dup_tiles2 = line.strip().split(' ')
-            dup_tiles[(img1_id, img2_id)] = (np.array(list(map(int, dup_tiles1))), np.array(list(map(int, dup_tiles2))))
-
-    return dup_tiles
-
-
-def write_image_image_duplicate_tiles(filename, dup_tiles):
-    """
-    dup_tiles format: {(img1_id, img2_id): ((9, 1, 9, 3, 9, 9, 9, 1, 8), (9, 3, 8, 9, 1, 8, 9, 9, 8))}
-    file format: img1_id img2_id 919399918 938918998
-
-    :param dup_tiles:
-    :param filename:
-    :return:
-    """
-
-    with open(filename, 'w') as ofs:
-        for (img1_id, img2_id), (dup_tiles1, dup_tiles2) in sorted(dup_tiles.items()):
-            ofs.write(img1_id + ' ' + img2_id + ' ')
-            ofs.write(''.join([str(d) for d in dup_tiles1]) + ' ')
-            ofs.write(''.join([str(d) for d in dup_tiles2]) + '\n')
-
-
-def update_image_image_duplicate_tiles(filename, new_tiles):
-    has_updated = False
-    duplicate_tiles = read_image_image_duplicate_tiles(filename)
-    n_lines_in_original = len(duplicate_tiles)
-    for (img1_id, img2_id), (dup_tiles1, dup_tiles2) in new_tiles.items():
-
-        if (img1_id, img2_id) in duplicate_tiles:
-            old_tiles1, old_tiles2 = duplicate_tiles[(img1_id, img2_id)]
-            if np.any(old_tiles1 != dup_tiles1):
-                raise ValueError(f"{img1_id}: old tiles vs. new tiles: {old_tiles1} != {dup_tiles1}")
-            if np.any(old_tiles2 != dup_tiles2):
-                raise ValueError(f"{img2_id}: old tiles vs. new tiles: {old_tiles2} != {dup_tiles2}")
-        else:
-            duplicate_tiles[(img1_id, img2_id)] = (dup_tiles1, dup_tiles2)
-            has_updated = True
-
-    if has_updated:
-        backup_str = pad_string(str(n_lines_in_original), 8)
-        backup_file(filename, backup_str)
-        write_image_image_duplicate_tiles(filename, duplicate_tiles)
-
-
 def create_dataset_from_tiles_and_truth(dup_truth, sdcic):
 
     tpl = generate_tag_pair_lookup()

@@ -23,8 +23,6 @@ from sdcdup.utils import gen_greycop_hash
 from sdcdup.utils import get_issolid_flags
 from sdcdup.utils import read_image_duplicate_tiles
 from sdcdup.utils import write_image_duplicate_tiles
-from sdcdup.utils import read_image_image_duplicate_tiles
-from sdcdup.utils import update_image_image_duplicate_tiles
 
 EPS = np.finfo(np.float32).eps
 
@@ -69,7 +67,6 @@ class SDCImageContainer:
         self.tile_entropy_grids = {}
         self.tile_issolid_grids = {}
         self.image_duplicate_tiles = {}
-        self.image_image_duplicate_tiles = {}
         self.matches = {}
         self.bmh_distance_max = 5
         self.overlap_bmh_min_score = 1 - ((self.bmh_distance_max + 20) / 256)
@@ -364,46 +361,6 @@ class SDCImageContainer:
             scores.append(score)
         return np.array(scores)
 
-    def update_image_image_duplicate_tiles(self, img1_id, img2_id):
-        """
-        record tiles from other images that match tiles from this image exactly.
-
-        ImageId0      ImageId1      012345678 012345678
-        ---------------------------------------------------------------
-        012345678.jpg abcdef123.jpg 999999999 999999999  No equal pairs
-        012345678.jpg abcdef123.jpg 099099099 999000000  (0, 3, 6) == (3, 4, 5, 6, 7, 8)
-        012345678.jpg abcdef123.jpg 919399918 938918998  (1, 7) == 4, 3 == 1, 8 == (2, 5, 8)
-        012345678.jpg abcdef123.jpg 012345678 678012345  0 == 3, ..., 3 == 6, ..., 8 == 2
-
-        :param img1_id:
-        :param img2_id:
-        :return:
-        """
-        dup_self1 = self.image_duplicate_tiles[img1_id]
-        dup_self2 = self.image_duplicate_tiles[img2_id]
-        dup_cts1 = Counter(dup_self1)
-        dup_cts2 = Counter(dup_self2)
-
-        dup_idx1 = {c: np.array([idx for idx, tidx in enumerate(dup_self1) if tidx == c]) for c in dup_cts1}
-        dup_idx2 = {c: np.array([idx for idx, tidx in enumerate(dup_self2) if tidx == c]) for c in dup_cts2}
-        dup_tiles1 = np.array([9 if dup_cts1[idx] == 1 else tidx for idx, tidx in enumerate(dup_self1)])
-        dup_tiles2 = np.array([9 if dup_cts2[idx] == 1 else tidx for idx, tidx in enumerate(dup_self2)])
-
-        is_updated = False
-        for idx1 in dup_cts1:
-            for idx2 in dup_cts2:
-                if self.tile_md5hash_grids[img1_id][idx1] != self.tile_md5hash_grids[img2_id][idx2]:
-                    continue
-
-                dup_tiles1[dup_idx1[idx1]] = idx1
-                dup_tiles2[dup_idx2[idx2]] = idx1
-
-        if (img1_id, img2_id) not in self.image_image_duplicate_tiles:
-            self.image_image_duplicate_tiles[(img1_id, img2_id)] = (dup_tiles1, dup_tiles2)
-            is_updated = True
-
-        return is_updated
-
     def find_valid_pairings_by_hash(self, hash_id, sorted_hash_dict, level_overlap_tags):
 
         img_list = list(sorted(sorted_hash_dict[hash_id]))
@@ -549,7 +506,6 @@ def main():
     image_entropy_grids_file = os.path.join("data", "image_entropy_grids.pkl")
     image_issolid_grids_file = os.path.join("data", "image_issolid_grids.pkl")
     image_duplicate_tiles_file = os.path.join("data", "image_duplicate_tiles.txt")
-    image_image_duplicate_tiles_file = os.path.join("data", "image_image_duplicate_tiles.txt")
 
     sdcic = SDCImageContainer(train_image_dir)
     sdcic.preprocess_image_properties(
@@ -651,20 +607,6 @@ def main():
                 overlap_pix_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *pix_scores))
         df = pd.DataFrame(overlap_pix_tile_scores_list)
         df.to_pickle(overlap_pix_tile_scores_file)
-
-    sdcic.image_image_duplicate_tiles = read_image_image_duplicate_tiles(image_image_duplicate_tiles_file)
-
-    updated_image_image_duplicate_tiles = {}
-    for (img1_id, img2_id), img1_overlap_tags in tqdm(sorted(overlap_bmh_tile_scores.items())):
-        if (img1_id, img2_id) in sdcic.image_image_duplicate_tiles:
-            continue
-        is_updated = sdcic.update_image_image_duplicate_tiles(img1_id, img2_id)
-        if not is_updated:
-            continue
-        updated_image_image_duplicate_tiles[(img1_id, img2_id)] = sdcic.image_image_duplicate_tiles[(img1_id, img2_id)]
-
-    if len(updated_image_image_duplicate_tiles) > 0:
-        update_image_image_duplicate_tiles(image_image_duplicate_tiles_file, updated_image_image_duplicate_tiles)
 
 
 if __name__ == '__main__':
