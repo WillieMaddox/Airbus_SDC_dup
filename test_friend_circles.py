@@ -64,6 +64,7 @@ class SDCImageContainer:
         self.tile_greycop_grids = {}
         self.tile_entropy_grids = {}
         self.tile_issolid_grids = {}
+        self.tile_shipcnt_grids = {}
         self.matches = {}
         self.bmh_distance_max = 5
         self.overlap_bmh_min_score = 1 - ((self.bmh_distance_max + 20) / 256)
@@ -71,7 +72,13 @@ class SDCImageContainer:
         self.color_cts_solid = self.sz * self.sz
         self.cache = LRUCache(maxsize=cache_size)
 
-    def preprocess_image_properties(self, filename_md5hash, filename_bm0hash, filename_cm0hash, filename_greycop, filename_entropy, filename_issolid):
+    def preprocess_image_properties(self,
+                                    filename_md5hash,
+                                    filename_bm0hash,
+                                    filename_cm0hash,
+                                    filename_greycop,
+                                    filename_entropy,
+                                    filename_issolid):
         img_md5hash_grids = {}
         if os.path.exists(filename_md5hash):
             df = pd.read_pickle(filename_md5hash)
@@ -246,6 +253,44 @@ class SDCImageContainer:
         if ss > 0:
             df = pd.DataFrame().append(issolid_records)
             df.to_pickle(filename_issolid)
+
+    def preprecess_ship_counts(self, train_seg_file, filename_shipcnt):
+
+        import h5py
+
+        img_shipcnt_grids = {}
+        if os.path.exists(filename_shipcnt):
+            df = pd.read_pickle(filename_shipcnt)
+            img_shipcnt_grids = {key: val for key, val in df.to_dict('split')['data']}
+
+        pp = 0
+
+        shipcnt_records = []
+
+        img_ids = os.listdir(self.train_image_dir)
+        with h5py.File(train_seg_file, 'r') as full_mask:
+            for img_id in tqdm(sorted(img_ids)):
+                tile_shipcnt_grid = img_shipcnt_grids.get(img_id)
+                if tile_shipcnt_grid is None:
+                    pp += 1
+                    tile_shipcnt_grid = np.zeros(self.n_tiles, dtype=np.int)
+                    if img_id in full_mask:
+                        img = full_mask[img_id][:]
+                        for idx in range(self.n_tiles):
+                            tile = self.get_tile(img, idx)
+                            tile_shipcnt_grid[idx] = np.sum(tile)
+
+                shipcnt_records.append({'ImageId': img_id, 'shipcnt_grid': tile_shipcnt_grid})  # int
+                self.tile_shipcnt_grids[img_id] = tile_shipcnt_grid
+
+                if pp >= 5000:
+                    df = pd.DataFrame().append(shipcnt_records)
+                    df.to_pickle(filename_shipcnt)
+                    pp = 0
+
+            if pp > 0:
+                df = pd.DataFrame().append(shipcnt_records)
+                df.to_pickle(filename_shipcnt)
 
     @cachedmethod(operator.attrgetter('cache'))
     def get_img(self, filename, path=None):
@@ -463,7 +508,10 @@ class SDCImage:
 
 def main():
     ship_dir = "data/input"
+
     train_image_dir = os.path.join(ship_dir, 'train_768')
+    sdcic = SDCImageContainer(train_image_dir)
+
     image_md5hash_grids_file = os.path.join("data", "image_md5hash_grids.pkl")
     image_bm0hash_grids_file = os.path.join("data", "image_bm0hash_grids.pkl")
     image_cm0hash_grids_file = os.path.join("data", "image_cm0hash_grids.pkl")
@@ -471,7 +519,6 @@ def main():
     image_entropy_grids_file = os.path.join("data", "image_entropy_grids.pkl")
     image_issolid_grids_file = os.path.join("data", "image_issolid_grids.pkl")
 
-    sdcic = SDCImageContainer(train_image_dir)
     sdcic.preprocess_image_properties(
         image_md5hash_grids_file,
         image_bm0hash_grids_file,
@@ -479,6 +526,10 @@ def main():
         image_greycop_grids_file,
         image_entropy_grids_file,
         image_issolid_grids_file)
+
+    train_seg_file = os.path.join(ship_dir, "fullmasks_768.h5")
+    image_shipcnt_grids_file = os.path.join("data", "image_shipcnt_grids.pkl")
+    sdcic.preprecess_ship_counts(train_seg_file, image_shipcnt_grids_file)
 
     n_matching_tiles = 9  # 376407 matches 2:40,    259 pixel_scores 00:03
     # n_matching_tiles = 6  # 376407 matches 3:12,  82823 pixel_scores 16:25
