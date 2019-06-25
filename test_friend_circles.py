@@ -371,6 +371,30 @@ class SDCImageContainer:
             scores.append(score)
         return np.array(scores)
 
+    def gen_px0_scores(self, img1_id, img2_id, img1_overlap_tag):
+        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
+        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
+        img1 = self.get_img(img1_id)
+        img2 = self.get_img(img2_id)
+        scores = []
+        for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
+            tile1 = self.get_tile(img1, idx1)
+            tile2 = self.get_tile(img2, idx2)
+            score = np.sum(tile1 != tile2)
+            scores.append(score)
+        return np.array(scores)
+
+    def gen_shipcnt_scores(self, img1_id, img2_id, img1_overlap_tag):
+        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
+        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
+        scores = []
+        for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
+            shp1 = self.tile_shipcnt_grids[img1_id][idx1]
+            shp2 = self.tile_shipcnt_grids[img2_id][idx2]
+            score = shp1 + shp2
+            scores.append(score)
+        return np.array(scores)
+
     def find_valid_pairings_by_hash(self, hash_id, sorted_hash_dict, level_overlap_tags):
 
         img_list = list(sorted(sorted_hash_dict[hash_id]))
@@ -541,6 +565,8 @@ def main():
     overlap_gcm_tile_scores_file = os.path.join("data", f"overlap_gcm_tile_scores_{n_matching_tiles}.pkl")
     overlap_enp_tile_scores_file = os.path.join("data", f"overlap_enp_tile_scores_{n_matching_tiles}.pkl")
     overlap_pix_tile_scores_file = os.path.join("data", f"overlap_pix_tile_scores_{n_matching_tiles}.pkl")
+    overlap_px0_tile_scores_file = os.path.join("data", f"overlap_px0_tile_scores_{n_matching_tiles}.pkl")
+    overlap_shp_tile_scores_file = os.path.join("data", f"overlap_shp_tile_scores_{n_matching_tiles}.pkl")
 
     # blockMeanHash
     if not os.path.exists(overlap_bmh_tile_scores_file):
@@ -621,6 +647,27 @@ def main():
                 overlap_pix_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *pix_scores))
         df = pd.DataFrame(overlap_pix_tile_scores_list)
         df.to_pickle(overlap_pix_tile_scores_file)
+
+    # Pixel scores:
+    # Hamming distance between 2 images pixelwise. Requires reading images so can be slow.
+    if not os.path.exists(overlap_px0_tile_scores_file):
+        overlap_px0_tile_scores_list = []
+        for (img1_id, img2_id), img1_overlap_tags in tqdm(sorted(overlap_bmh_tile_scores.items())):
+            for img1_overlap_tag in img1_overlap_tags:
+                px0_scores = sdcic.gen_px0_scores(img1_id, img2_id, img1_overlap_tag)
+                overlap_px0_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *px0_scores))
+        df = pd.DataFrame(overlap_px0_tile_scores_list)
+        df.to_pickle(overlap_px0_tile_scores_file)
+
+    # number of pixels that belong to ships:
+    if not os.path.exists(overlap_shp_tile_scores_file):
+        overlap_shp_tile_scores_list = []
+        for (img1_id, img2_id), img1_overlap_tags in tqdm(sorted(overlap_bmh_tile_scores.items())):
+            for img1_overlap_tag in img1_overlap_tags:
+                shp_scores = sdcic.gen_shipcnt_scores(img1_id, img2_id, img1_overlap_tag)
+                overlap_shp_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *shp_scores))
+        df = pd.DataFrame(overlap_shp_tile_scores_list)
+        df.to_pickle(overlap_shp_tile_scores_file)
 
 
 if __name__ == '__main__':
