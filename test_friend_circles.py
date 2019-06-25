@@ -323,19 +323,6 @@ class SDCImageContainer:
             scores.append(score)
         return scores
 
-    def gen_pixel_scores(self, img1_id, img2_id, img1_overlap_tag):
-        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
-        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
-        img1 = self.get_img(img1_id)
-        img2 = self.get_img(img2_id)
-        scores = []
-        for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            tile1 = self.get_tile(img1, idx1)
-            tile2 = self.get_tile(img2, idx2)
-            score = fuzzy_diff(tile1, tile2)
-            scores.append(score)
-        return np.array(scores)
-
     def get_greycop_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
@@ -368,6 +355,19 @@ class SDCImageContainer:
             enp2 = self.tile_entropy_grids[img2_id][idx2]
             score = np.exp(-np.linalg.norm(enp1 - enp2))
             # score = np.mean((enp1 + enp2) / 2.0)
+            scores.append(score)
+        return np.array(scores)
+
+    def gen_pixel_scores(self, img1_id, img2_id, img1_overlap_tag):
+        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
+        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
+        img1 = self.get_img(img1_id)
+        img2 = self.get_img(img2_id)
+        scores = []
+        for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
+            tile1 = self.get_tile(img1, idx1)
+            tile2 = self.get_tile(img2, idx2)
+            score = fuzzy_diff(tile1, tile2)
             scores.append(score)
         return np.array(scores)
 
