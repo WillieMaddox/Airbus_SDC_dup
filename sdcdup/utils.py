@@ -4,6 +4,7 @@ from datetime import datetime
 from collections import Counter
 from functools import lru_cache
 import numpy as np
+import networkx as nx
 import cv2
 from cv2 import img_hash
 from skimage.measure import shannon_entropy
@@ -741,3 +742,17 @@ def even_split(n_samples, batch_size, split):
     n_valid = valid_pivot - valid_pivot % batch_size
 
     return n_train, n_valid
+
+
+def update_tile_cliques(G, tile1_hash, tile2_hash):
+    G.add_edge(tile1_hash, tile2_hash)
+    tile1_neighbors = set(nx.neighbors(G, tile1_hash))
+    tile2_neighbors = set(nx.neighbors(G, tile2_hash))
+#     print(tile1_hash, tile1_neighbors)
+#     print(tile2_hash, tile2_neighbors)
+#     assert len(tile1_neighbors & tile2_neighbors) == 0
+    tile12_neighbors = tile1_neighbors | tile2_neighbors
+#     print(tile12_neighbors)
+    T = nx.complete_graph(tile12_neighbors)
+    T.add_edges_from([(n, n) for n in tile12_neighbors])
+    G.update(T)
