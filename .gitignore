@@ -110,3 +110,5 @@ venv.bak/
 data/input
 data/*/
 temp/
+output/
+out/
