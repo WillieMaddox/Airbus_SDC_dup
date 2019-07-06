@@ -392,26 +392,6 @@ def gen_entropy(tile):
     return entropy_shannon
 
 
-def gen_wrap_scores(img1, img2, img1_overlap_tag):
-    img1_slice = img1[overlap_tag_slices[img1_overlap_tag]]
-    img2_slice = img2[overlap_tag_slices[overlap_tag_pairs[img1_overlap_tag]]]
-    m12 = np.median(np.vstack([img1_slice, img2_slice]), axis=(0, 1), keepdims=True).astype(np.uint8)
-    img1_wrap = img1 - m12
-    img2_wrap = img2 - m12
-    img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
-    img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
-    scores = []
-    for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-        tile1 = get_tile(img1_wrap, idx1)
-        tile2 = get_tile(img2_wrap, idx2)
-        # score = fuzzy_compare(tile1, tile2)
-        bmh1 = img_hash.blockMeanHash(tile1)
-        bmh2 = img_hash.blockMeanHash(tile2)
-        score = get_hamming_distance_score(bmh1, bmh2, normalize=True)
-        scores.append(score)
-    return np.array(scores)
-
-
 def gen_greycop_hash(tile, n_metrics):
     # TODO: Add second order entropy using 3x3 kernel.
     #  https://www.harrisgeospatial.com/docs/backgroundtexturemetrics.html
@@ -541,21 +521,6 @@ def channel_shift(img, chan, val):
     return scaled_img
 
 
-def backup_file(filename, backup_str=None):
-
-    if not os.path.exists(filename):
-        return
-    if backup_str is None:
-        backup_str = get_datetime_now()
-    else:
-        assert type(backup_str) == str
-
-    filebase, fileext = filename.rsplit('.', maxsplit=1)
-    new_filename = ''.join([filebase, "_", backup_str, ".", fileext])
-    copyfile(filename, new_filename)
-    assert os.path.exists(new_filename)
-
-
 def read_duplicate_truth(filename):
     """
     Reads files with the following line format,
@@ -656,40 +621,6 @@ def update_duplicate_truth(pre_chunk, filepath='data', filename='duplicate_truth
         write_duplicate_truth(os.path.join(filepath, filename), duplicate_truth)
 
         return duplicate_truth
-
-
-def read_image_duplicate_tiles(filename):
-    """
-    filename format: img_id 011345666
-    dup_tiles format: {img_id: np.array([0, 1, 1, 3, 4, 5, 6, 6, 6])}
-    :param filename:
-    :return:
-    """
-    dup_tiles = {}
-    if not os.path.exists(filename):
-        return dup_tiles
-
-    with open(filename, 'r') as ifs:
-        for line in ifs.readlines():
-            img1_id, dup_tiles1 = line.strip().split(' ')
-            dup_tiles[img1_id] = np.array(list(map(int, dup_tiles1)))
-
-    return dup_tiles
-
-
-def write_image_duplicate_tiles(filename, dup_tiles):
-    """
-    dup_tiles format: {img_id: np.array([0, 1, 1, 3, 4, 5, 6, 6, 6])}
-    filename format: img_id 011345666
-
-    :param dup_tiles:
-    :param filename:
-    :return:
-    """
-    with open(filename, 'w') as ofs:
-        for img1_id, dup_tiles1 in sorted(dup_tiles.items()):
-            ofs.write(img1_id + ' ')
-            ofs.write(''.join(list(map(str, dup_tiles1))) + '\n')
 
 
 def create_dataset_from_tiles_and_truth(dup_truth, sdcic):
