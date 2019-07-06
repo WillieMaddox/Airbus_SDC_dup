@@ -10,7 +10,7 @@ from tqdm import tqdm
 import cv2
 from cv2 import img_hash
 from collections import defaultdict
-from collections import Counter
+from collections import namedtuple
 from sdcdup.utils import tile_idx2ij
 from sdcdup.utils import get_hamming_distance_score
 from sdcdup.utils import generate_pair_tag_lookup
@@ -528,6 +528,103 @@ class SDCImage:
             self.overlap_tile_scores[i, j, k, l] = s
 
         self.overlap_image_maps[tag][other_sdc.img_id] = {'tile_scores': tile_scores}
+
+
+# TODO: add ability to specify which score types we want retrieved.
+#  Need to figure out what to do about gcm since it holds 5 different score types.
+def load_image_overlap_properties(n_matching_tiles_list, score_types=None):
+
+    overlap_image_maps = {}
+
+    for n_matching_tiles in n_matching_tiles_list:
+
+        overlap_bmh_tile_scores_file = os.path.join("data", f"overlap_bmh_tile_scores_{n_matching_tiles}.pkl")
+        overlap_cmh_tile_scores_file = os.path.join("data", f"overlap_cmh_tile_scores_{n_matching_tiles}.pkl")
+        overlap_gcm_tile_scores_file = os.path.join("data", f"overlap_gcm_tile_scores_{n_matching_tiles}.pkl")
+        overlap_enp_tile_scores_file = os.path.join("data", f"overlap_enp_tile_scores_{n_matching_tiles}.pkl")
+        overlap_pix_tile_scores_file = os.path.join("data", f"overlap_pix_tile_scores_{n_matching_tiles}.pkl")
+        overlap_px0_tile_scores_file = os.path.join("data", f"overlap_px0_tile_scores_{n_matching_tiles}.pkl")
+        overlap_shp_tile_scores_file = os.path.join("data", f"overlap_shp_tile_scores_{n_matching_tiles}.pkl")
+
+        df = pd.read_pickle(overlap_bmh_tile_scores_file)
+        overlap_bmh_tile_scores = {}
+        for img1_id, img2_id, img1_overlap_tag, *bmh_scores in df.to_dict('split')['data']:
+            if (img1_id, img2_id) not in overlap_bmh_tile_scores:
+                overlap_bmh_tile_scores[(img1_id, img2_id)] = {}
+            overlap_bmh_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(bmh_scores)
+
+        df = pd.read_pickle(overlap_cmh_tile_scores_file)
+        overlap_cmh_tile_scores = {}
+        for img1_id, img2_id, img1_overlap_tag, *cmh_scores in df.to_dict('split')['data']:
+            if (img1_id, img2_id) not in overlap_cmh_tile_scores:
+                overlap_cmh_tile_scores[(img1_id, img2_id)] = {}
+            overlap_cmh_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(cmh_scores)
+
+        df = pd.read_pickle(overlap_gcm_tile_scores_file)
+        overlap_gcm_tile_scores = {}
+        for img1_id, img2_id, img1_overlap_tag, *gcm_scores in df.to_dict('split')['data']:
+            if (img1_id, img2_id) not in overlap_gcm_tile_scores:
+                overlap_gcm_tile_scores[(img1_id, img2_id)] = {}
+            overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(gcm_scores)
+
+        df = pd.read_pickle(overlap_enp_tile_scores_file)
+        overlap_enp_tile_scores = {}
+        for img1_id, img2_id, img1_overlap_tag, *enp_scores in df.to_dict('split')['data']:
+            if (img1_id, img2_id) not in overlap_enp_tile_scores:
+                overlap_enp_tile_scores[(img1_id, img2_id)] = {}
+            overlap_enp_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(enp_scores)
+
+        df = pd.read_pickle(overlap_pix_tile_scores_file)
+        overlap_pix_tile_scores = {}
+        for img1_id, img2_id, img1_overlap_tag, *pix_scores in df.to_dict('split')['data']:
+            if (img1_id, img2_id) not in overlap_pix_tile_scores:
+                overlap_pix_tile_scores[(img1_id, img2_id)] = {}
+            overlap_pix_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(pix_scores)
+
+        df = pd.read_pickle(overlap_px0_tile_scores_file)
+        overlap_px0_tile_scores = {}
+        for img1_id, img2_id, img1_overlap_tag, *px0_scores in df.to_dict('split')['data']:
+            if (img1_id, img2_id) not in overlap_px0_tile_scores:
+                overlap_px0_tile_scores[(img1_id, img2_id)] = {}
+            overlap_px0_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(px0_scores)
+
+        df = pd.read_pickle(overlap_shp_tile_scores_file)
+        overlap_shp_tile_scores = {}
+        for img1_id, img2_id, img1_overlap_tag, *shp_scores in df.to_dict('split')['data']:
+            if (img1_id, img2_id) not in overlap_shp_tile_scores:
+                overlap_shp_tile_scores[(img1_id, img2_id)] = {}
+            overlap_shp_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(shp_scores)
+
+        Overlap_Scores = namedtuple(
+            'overlap_scores',
+            ['bmh', 'cmh', 'con', 'hom', 'eng', 'cor', 'epy', 'enp', 'pix', 'px0', 'shp']
+        )
+        for (img1_id, img2_id), img1_overlap_tags in tqdm(sorted(overlap_bmh_tile_scores.items())):
+            for img1_overlap_tag in img1_overlap_tags:
+
+                bmh_scores = overlap_bmh_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
+                cmh_scores = overlap_cmh_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
+                con_scores = overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag][:, 0]
+                hom_scores = overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag][:, 1]
+                eng_scores = overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag][:, 2]
+                cor_scores = overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag][:, 3]
+                epy_scores = overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag][:, 4]
+                enp_scores = overlap_enp_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
+                pix_scores = overlap_pix_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
+                px0_scores = overlap_px0_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
+                shp_scores = overlap_shp_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
+
+                overlap_scores = Overlap_Scores(
+                    bmh_scores, cmh_scores, con_scores, hom_scores, eng_scores, cor_scores,
+                    epy_scores, enp_scores, pix_scores, px0_scores, shp_scores)
+
+                if (img1_id, img2_id) not in overlap_image_maps:
+                    overlap_image_maps[(img1_id, img2_id)] = {}
+                overlap_image_maps[(img1_id, img2_id)][img1_overlap_tag] = overlap_scores
+
+        print(len(overlap_image_maps))
+
+    return overlap_image_maps
 
 
 def main():
