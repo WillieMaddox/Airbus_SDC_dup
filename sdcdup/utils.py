@@ -31,8 +31,8 @@ ij_pairs_3x3 = ((0, 0), (0, 1), (0, 2),
                 (1, 0), (1, 1), (1, 2),
                 (2, 0), (2, 1), (2, 2))
 
-tile_idx2ij = {idx: ij for idx, ij in enumerate(ij_pairs_3x3)}
-tile_ij2idx = {ij: idx for idx, ij in enumerate(ij_pairs_3x3)}
+idx2ijpair = {idx: ij for idx, ij in enumerate(ij_pairs_3x3)}
+ijpair2idx = {ij: idx for idx, ij in enumerate(ij_pairs_3x3)}
 
 overlap_tag_pairs = {
     '0000': '2222',
@@ -59,8 +59,7 @@ overlap_tag_pairs = {
     '2021': '0102',
     '2022': '0002',
     '2122': '0001',
-    '2222': '0000',
-}
+    '2222': '0000'}
 
 boundingbox_corners = {
     '0000': np.array([[0, 0], [1, 1]]) * B,
@@ -310,7 +309,7 @@ def get_best_model_name(run_dir):
 
 
 def get_tile(img, idx, sz=256):
-    i, j = tile_idx2ij[idx]
+    i, j = idx2ijpair[idx]
     return img[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
 
 
@@ -632,24 +631,26 @@ def create_dataset_from_tiles_and_truth(dup_truth, sdcic):
     for (img1_id, img2_id, img1_overlap_tag), is_dup in dup_truth.items():
         if len(set(sdcic.tile_md5hash_grids[img1_id])) <= 5 or len(set(sdcic.tile_md5hash_grids[img2_id])) <= 5:
             # if more than half the tiles are duplicates of themselves
-            # then probably one of the tiles are mostly white or black
+            # then probably one of the two images are mostly white or black
             continue
 
         if is_dup:
-            overlap_maps = tpl[img1_overlap_tag]
+            overlap_index_pairs = tpl[img1_overlap_tag]
         else:
-            overlap_maps = []
+            overlap_index_pairs = []
             for idx1, idx2 in tpl[img1_overlap_tag]:
-                # If 2 tiles are the same (except for (9, 9)) then
+                # If 2 tiles are the same then
                 # skip them since they are actually dups.
                 if sdcic.tile_md5hash_grids[img1_id][idx1] == sdcic.tile_md5hash_grids[img2_id][idx2]:
                     continue
-                overlap_maps.append((idx1, idx2))
+                overlap_index_pairs.append((idx1, idx2))
 
-        if len(overlap_maps) > 0:
-            img_overlap_pairs[(img1_id, img2_id, img1_overlap_tag)] = overlap_maps
-            used_ids.add(img1_id)
-            used_ids.add(img2_id)
+        if len(overlap_index_pairs) == 0:
+            continue
+
+        img_overlap_pairs[(img1_id, img2_id, img1_overlap_tag)] = overlap_index_pairs
+        used_ids.add(img1_id)
+        used_ids.add(img2_id)
 
     for img_id in sdcic.tile_md5hash_grids:
         if img_id in used_ids:
@@ -679,11 +680,8 @@ def update_tile_cliques(G, tile1_hash, tile2_hash):
     G.add_edge(tile1_hash, tile2_hash)
     tile1_neighbors = set(nx.neighbors(G, tile1_hash))
     tile2_neighbors = set(nx.neighbors(G, tile2_hash))
-#     print(tile1_hash, tile1_neighbors)
-#     print(tile2_hash, tile2_neighbors)
 #     assert len(tile1_neighbors & tile2_neighbors) == 0
     tile12_neighbors = tile1_neighbors | tile2_neighbors
-#     print(tile12_neighbors)
     T = nx.complete_graph(tile12_neighbors)
     T.add_edges_from([(n, n) for n in tile12_neighbors])
     G.update(T)

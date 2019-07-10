@@ -11,7 +11,7 @@ import cv2
 from cv2 import img_hash
 from collections import defaultdict
 from collections import namedtuple
-from sdcdup.utils import tile_idx2ij
+from sdcdup.utils import idx2ijpair
 from sdcdup.utils import get_hamming_distance_score
 from sdcdup.utils import generate_pair_tag_lookup
 from sdcdup.utils import overlap_tag_pairs
@@ -298,7 +298,7 @@ class SDCImageContainer:
         return cv2.imread(os.path.join(path, filename))
 
     def get_tile(self, img, idx):
-        i, j = tile_idx2ij[idx]
+        i, j = idx2ijpair[idx]
         return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
 
     def get_bmh_scores(self, img1_id, img2_id, img1_overlap_tag):
@@ -490,7 +490,7 @@ class SDCImage:
         return cv2.imread(self.filename)
 
     def get_tile(self, img, idx):
-        i, j = tile_idx2ij[idx]
+        i, j = idx2ijpair[idx]
         return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
 
     @property
@@ -508,7 +508,7 @@ class SDCImage:
     @property
     def tile_entropy_grid(self):
         if self._tile_entropy_grid is None:
-            self._tile_entropy_grid = np.zeros((self.n_tiles, 2), dtype=np.float) # (idx, chan)
+            self._tile_entropy_grid = np.zeros((self.n_tiles, 2), dtype=np.float)  # (idx, chan)
             img = self.get_img()
             for idx in range(self.n_tiles):
                 tile = self.get_tile(img, idx)
@@ -523,8 +523,8 @@ class SDCImage:
         self.overlap_image_names[tag] = other_sdc.img_id
 
         for (idx1, idx2, s) in zip(overlap_tag_maps[tag], overlap_tag_maps[overlap_tag_pairs[tag]], tile_scores):
-            i, j = tile_idx2ij[idx1]
-            k, l = tile_idx2ij[idx2]
+            i, j = idx2ijpair[idx1]
+            k, l = idx2ijpair[idx2]
             self.overlap_tile_scores[i, j, k, l] = s
 
         self.overlap_image_maps[tag][other_sdc.img_id] = {'tile_scores': tile_scores}
@@ -657,6 +657,7 @@ def main():
     # n_matching_tiles = 4  # 376407 matches 2:36,  72629 pixel_scores 13:51
     # n_matching_tiles = 3  # 376407 matches 2:43,  75936 pixel_scores 12:40
     # n_matching_tiles = 2  # 376407 matches 2:38, 149106 pixel_scores 20:26
+    # n_matching_tiles = 1
     overlap_bmh_tile_scores_file = os.path.join("data", f"overlap_bmh_tile_scores_{n_matching_tiles}.pkl")
     overlap_cmh_tile_scores_file = os.path.join("data", f"overlap_cmh_tile_scores_{n_matching_tiles}.pkl")
     overlap_gcm_tile_scores_file = os.path.join("data", f"overlap_gcm_tile_scores_{n_matching_tiles}.pkl")
@@ -665,6 +666,8 @@ def main():
     overlap_px0_tile_scores_file = os.path.join("data", f"overlap_px0_tile_scores_{n_matching_tiles}.pkl")
     overlap_shp_tile_scores_file = os.path.join("data", f"overlap_shp_tile_scores_{n_matching_tiles}.pkl")
 
+    # TODO: Use a "matches" file with only "(img1_id, img2_id), img1_overlap_tags"
+    #  instead of overlap_bmh_tile_scores_file for a reference in test_friend_circles.py
     # blockMeanHash
     if not os.path.exists(overlap_bmh_tile_scores_file):
 
