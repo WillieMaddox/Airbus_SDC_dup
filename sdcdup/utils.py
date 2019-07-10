@@ -5,6 +5,7 @@ from collections import Counter
 from functools import lru_cache
 import numpy as np
 import networkx as nx
+import pandas as pd
 import cv2
 from cv2 import img_hash
 from skimage.measure import shannon_entropy
@@ -114,6 +115,33 @@ overlap_tag_maps = {
     '2022': np.array([6, 7, 8]),
     '2122': np.array([7, 8]),
     '2222': np.array([8])}
+
+far_away_corners = {
+    '0000': ('2222',),
+    '0001': ('2222',),
+    '0002': ('2222', '2020'),
+    '0102': ('2020',),
+    '0202': ('2020',),
+    '0010': ('2222',),
+    '0011': ('2222',),
+    '0012': ('2222', '2020'),
+    '0112': ('2020',),
+    '0212': ('2020',),
+    '0020': ('2222', '0202'),
+    '0021': ('2222', '0202'),
+    '0022': ('2222', '2020', '0202', '0000'),
+    '0122': ('2020', '0000'),
+    '0222': ('2020', '0000'),
+    '1020': ('0202',),
+    '1021': ('0202',),
+    '1022': ('0202', '0000'),
+    '1122': ('0000',),
+    '1222': ('0000',),
+    '2020': ('0202',),
+    '2021': ('0202',),
+    '2022': ('0202', '0000'),
+    '2122': ('0000',),
+    '2222': ('0000',)}
 
 
 def generate_overlap_tag_slices():
@@ -622,41 +650,116 @@ def update_duplicate_truth(pre_chunk, filepath='data', filename='duplicate_truth
         return duplicate_truth
 
 
-def create_dataset_from_tiles_and_truth(dup_truth, sdcic):
+def create_dataset_from_tiles_and_truth(sdcic):
 
     tpl = generate_tag_pair_lookup()
+    dup_truth = load_duplicate_truth()
 
-    used_ids = set()
-    img_overlap_pairs = {}
+    dup_pairs = set()
+    img_overlap_pairs = []
+
+    # First collect all image pairs flagged as duplicates.
     for (img1_id, img2_id, img1_overlap_tag), is_dup in dup_truth.items():
-        if len(set(sdcic.tile_md5hash_grids[img1_id])) <= 5 or len(set(sdcic.tile_md5hash_grids[img2_id])) <= 5:
-            # if more than half the tiles are duplicates of themselves
-            # then probably one of the two images are mostly white or black
-            continue
-
         if is_dup:
-            overlap_index_pairs = tpl[img1_overlap_tag]
-        else:
-            overlap_index_pairs = []
             for idx1, idx2 in tpl[img1_overlap_tag]:
-                # If 2 tiles are the same then
-                # skip them since they are actually dups.
-                if sdcic.tile_md5hash_grids[img1_id][idx1] == sdcic.tile_md5hash_grids[img2_id][idx2]:
-                    continue
-                overlap_index_pairs.append((idx1, idx2))
+                img_overlap_pairs.append((img1_id, img2_id, idx1, idx2, is_dup))
+            # Keep a record of all duplicate image pairs for later reference.
+            dup_pairs.add((img1_id, img2_id))
 
-        if len(overlap_index_pairs) == 0:
+    n_dup_tile_pairs = len(img_overlap_pairs)
+    print(f"Number of non-dup/dup tiles: {0:>8}/{n_dup_tile_pairs}")
+
+    # For the second pass, record the non-dups as non-dups unless the hashes of
+    # overlapping tile are equal in which case just ignore that tile pair.
+    # Also, if the two images have already been flagged duplicate (possibly for
+    # a different overlap), then exclude all other overlaps we might have
+    # accidentally picked up.
+    done = False
+    for (img1_id, img2_id, img1_overlap_tag), is_dup in dup_truth.items():
+        if is_dup or (img1_id, img2_id) in dup_pairs:
             continue
 
-        img_overlap_pairs[(img1_id, img2_id, img1_overlap_tag)] = overlap_index_pairs
-        used_ids.add(img1_id)
-        used_ids.add(img2_id)
+        for idx1, idx2 in tpl[img1_overlap_tag]:
+            # If 2 tiles are the same then skip them since they are actually dups.
+            # Remember a dup corresponds to the "entire" overlay.  if the overlay
+            # is flagged as non-dup then at least one of the tiles is different.
+            if sdcic.tile_md5hash_grids[img1_id][idx1] == sdcic.tile_md5hash_grids[img2_id][idx2]:
+                continue
+            img_overlap_pairs.append((img1_id, img2_id, idx1, idx2, is_dup))
+            if len(img_overlap_pairs) > 2 * n_dup_tile_pairs:
+                done = True
+                break
+        if done:
+            break
 
-    for img_id in sdcic.tile_md5hash_grids:
-        if img_id in used_ids:
+    print(f"Number of non-dup/dup tiles: {len(img_overlap_pairs) - n_dup_tile_pairs:>8}/{n_dup_tile_pairs}")
+
+    if done:
+        return img_overlap_pairs
+
+    # Now go through the rest of the possible matches not yet verified in truth
+    # and pick out the two tiles that, if the images were dups, would be the
+    # tiles farthest away and set those as non-dups. These are good non dup
+    # candidates because they are most likely very similar images but also most
+    # likely not duplicates. Verify by comparing hashes.
+    n_matching_tiles_list = [9, 6, 4, 3, 2, 1]
+    for n_matching_tiles in n_matching_tiles_list:
+        possible_matches_file = os.path.join("data", f"overlap_bmh_tile_scores_{n_matching_tiles}.pkl")
+        df = pd.read_pickle(possible_matches_file)
+        # load matches -> [(img1_id, img2_id, img1_overlap_tag), ...]
+
+        possible_matches = {(i1, i2, o1): s for i1, i2, o1, *s in df.to_dict('split')['data']}
+        for img1_id, img2_id, img1_overlap_tag in possible_matches:
+            # We've already accounted for these earlier up above.
+            if (img1_id, img2_id) in dup_pairs or (img1_id, img2_id, img1_overlap_tag) in dup_truth:
+                continue
+            # Find scores for far_away_corners.
+            far_scores = []
+            for img1_far_tag in far_away_corners[img1_overlap_tag]:
+                bmh_scores = sdcic.get_bmh_scores(img1_id, img2_id, img1_far_tag)
+                far_scores.append(bmh_scores[0])
+            # The score has to be lower than sdcic.overlap_bmh_min_score.
+            if min(far_scores) > sdcic.overlap_bmh_min_score:
+                continue
+            # Keep the one that has the lowest score.
+            idx1, idx2 = tpl[far_away_corners[img1_overlap_tag][far_scores.index(min(far_scores))]][0]
+            img_overlap_pairs.append((img1_id, img2_id, idx1, idx2, 0))
+            if len(img_overlap_pairs) > 2 * n_dup_tile_pairs:
+                done = True
+                break
+        if done:
+            break
+
+    print(f"Number of non-dup/dup tiles: {len(img_overlap_pairs) - n_dup_tile_pairs:>8}/{n_dup_tile_pairs}")
+
+    if done:
+        return img_overlap_pairs
+
+    # Finally, if we still don't have a 50/50 split between dup/non-dup datapoints,
+    # choose random images from the dataset and a random tile from each image and set
+    # those as non-dups and continue until we have 50/50 split. Verify by comparing hashes.
+    img_ids = os.listdir(sdcic.train_image_dir)
+    corners = ['0000', '0202', '2020', '2222']
+
+    while True:
+
+        img1_id, img2_id = np.random.choice(img_ids, 2)
+        # TODO: implement option to choose ANY random tiles not just the ones on opposite corners.
+        img1_overlap_tag = np.random.choice(corners)
+
+        # Probably won't ever happen but just in case...
+        if (img1_id, img2_id) in dup_pairs or (img1_id, img2_id, img1_overlap_tag) in dup_truth:
             continue
-        if len(set(sdcic.tile_md5hash_grids[img_id])) == 9:  # if all tiles are unique.
-            img_overlap_pairs[(img_id, img_id, '0022')] = tpl['0022']
+        # The score has to be lower than sdcic.overlap_bmh_min_score.
+        if sdcic.get_bmh_scores(img1_id, img2_id, img1_overlap_tag)[0] > sdcic.overlap_bmh_min_score:
+            continue
+        # Keep the one that has the lowest score.
+        idx1, idx2 = tpl[img1_overlap_tag][0]
+        img_overlap_pairs.append((img1_id, img2_id, idx1, idx2, 0))
+        if len(img_overlap_pairs) > 2 * n_dup_tile_pairs:
+            break
+
+    print(f"Number of non-dup/dup tiles: {len(img_overlap_pairs) - n_dup_tile_pairs:>8}/{n_dup_tile_pairs}")
 
     return img_overlap_pairs
 
