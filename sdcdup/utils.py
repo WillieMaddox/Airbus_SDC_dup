@@ -674,6 +674,7 @@ def create_dataset_from_tiles_and_truth(sdcic):
     # Also, if the two images have already been flagged duplicate (possibly for
     # a different overlap), then exclude all other overlaps we might have
     # accidentally picked up.
+
     done = False
     for (img1_id, img2_id, img1_overlap_tag), is_dup in dup_truth.items():
         if is_dup or (img1_id, img2_id) in dup_pairs:
@@ -702,14 +703,16 @@ def create_dataset_from_tiles_and_truth(sdcic):
     # tiles farthest away and set those as non-dups. These are good non dup
     # candidates because they are most likely very similar images but also most
     # likely not duplicates. Verify by comparing hashes.
+
     n_matching_tiles_list = [9, 6, 4, 3, 2, 1]
     for n_matching_tiles in n_matching_tiles_list:
+        # load matches -> [(img1_id, img2_id, img1_overlap_tag), ...]
         possible_matches_file = os.path.join("data", f"overlap_bmh_tile_scores_{n_matching_tiles}.pkl")
         df = pd.read_pickle(possible_matches_file)
-        # load matches -> [(img1_id, img2_id, img1_overlap_tag), ...]
-
         possible_matches = {(i1, i2, o1): s for i1, i2, o1, *s in df.to_dict('split')['data']}
+
         for img1_id, img2_id, img1_overlap_tag in possible_matches:
+
             # We've already accounted for these earlier up above.
             if (img1_id, img2_id) in dup_pairs or (img1_id, img2_id, img1_overlap_tag) in dup_truth:
                 continue
@@ -738,6 +741,7 @@ def create_dataset_from_tiles_and_truth(sdcic):
     # Finally, if we still don't have a 50/50 split between dup/non-dup datapoints,
     # choose random images from the dataset and a random tile from each image and set
     # those as non-dups and continue until we have 50/50 split. Verify by comparing hashes.
+
     img_ids = os.listdir(sdcic.train_image_dir)
     corners = ['0000', '0202', '2020', '2222']
 

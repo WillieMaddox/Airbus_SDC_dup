@@ -297,9 +297,9 @@ class FileInfo:
                 image_id = image_filename_generator(y_block, x_block)
                 image_filename = os.path.join(output_dir, image_id)
 
-                if image.max() < self.black_cutoff:  # ignore nearly all black images
+                if image.max() < self.black_cutoff:  # ignore all nearly black images
                     image_codes[y_block, x_block] = -1
-                elif image.min() > self.white_cutoff:  # ignore nearly all white images
+                elif image.min() > self.white_cutoff:  # ignore all nearly white images
                     image_codes[y_block, x_block] = 1
                 else:
                     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -332,7 +332,6 @@ class FileInfo:
         1 2 3 2 1     ( 2,-2), ( 2,-1), ( 2,0), ( 2,1), ( 2,2)
 
         """
-
         img2_offsets = [(-2,-2), (-2,-1), (-2,0), (-2,1), (-2,2),
                         (-1,-2), (-1,-1), (-1,0), (-1,1), (-1,2),
                         ( 0,-2), ( 0,-1),         ( 0,1), ( 0,2),
@@ -351,28 +350,23 @@ class FileInfo:
 
                 if image_codes[img1_y_block, img1_x_block] != 0:
                     continue
-
                 img1_id = image_filename_generator(img1_y_block, img1_x_block)
 
                 for img1_overlap_tag, (y_off, x_off) in zip(img1_overlap_tags, img2_offsets):
 
                     img2_x_block = img1_x_block + x_off
                     img2_y_block = img1_y_block + y_off
-
                     if img2_x_block < 0 or img2_y_block < 0:
                         continue
                     if img2_x_block >= x_blocks or img2_y_block >= y_blocks:
                         continue
                     if image_codes[img2_y_block, img2_x_block] != 0:
                         continue
-
                     img2_id = image_filename_generator(img2_y_block, img2_x_block)
-
                     if img1_id < img2_id:
                         key = (img1_id, img2_id, img1_overlap_tag)
                     else:
                         key = (img2_id, img1_id, overlap_tag_pairs[img1_overlap_tag])
-
                     if key in duplicate_truth:
                         continue
 
@@ -411,7 +405,9 @@ def create_dataset_from_truth(rootpath=None, filename="duplicate_truth_paths.txt
     img_overlap_pairs = {}
     black_tiles_dict = {}
     white_tiles_dict = {}
+
     for dup_truth_path in tqdm(dup_truth_paths):
+
         dup_truth_path = os.path.join(rootpath, dup_truth_path) if rootpath else dup_truth_path
         dup_truth_filename = os.path.join(dup_truth_path, "duplicate_truth.txt")
         dup_truth = read_duplicate_truth(dup_truth_filename)
@@ -490,7 +486,6 @@ def create_dataset_from_truth(rootpath=None, filename="duplicate_truth_paths.txt
         for ij1, ij2 in comb_iter:
             idx1 = ijpair2idx[ij1]
             idx2 = ijpair2idx[ij2]
-            # idx1, idx2 = (idx1, idx2) if idx1 < idx2 else (idx2, idx1)
             overlap_key = (img1_id, img1_id, idx1, idx2)
             if overlap_key in img_overlap_pairs:
                 print(overlap_key)
