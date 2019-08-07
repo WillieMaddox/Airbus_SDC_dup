@@ -1,8 +1,11 @@
 import os
+import operator
 from shutil import copyfile
 from datetime import datetime
 from collections import Counter
+from collections import namedtuple
 from functools import lru_cache
+from tqdm import tqdm
 import numpy as np
 import networkx as nx
 import pandas as pd
@@ -677,6 +680,93 @@ def update_duplicate_truth(pre_chunk, filepath='data', filename='duplicate_truth
         return duplicate_truth
 
 
+def create_dataset_from_tiles(sdcic):
+    """
+    is_dup issolid  action
+     i==j   i   j    skip?
+    ----------------------
+        1   1   1     1
+        1   1   0     1 Does not exist?
+        1   0   1     1 Does not exist?
+        1   0   0     0
+    ----------------------
+        0   1   1     1
+        0   1   0     0 Could present problems if other tile is "near" solid.
+        0   0   1     0 Could present problems if other tile is "near" solid.
+        0   0   0     0
+
+    :param sdcic:
+    :return:
+    """
+    img_overlap_pairs_dup_keys = []
+    img_overlap_pairs_non_dup_all = []
+
+    KeyScore = namedtuple('keyscore', 'key score')
+    for img_id, tile_md5hash_grid in tqdm(sdcic.tile_md5hash_grids.items()):
+        for idx1, tile1_md5hash in enumerate(tile_md5hash_grid):
+            for idx2, tile2_md5hash in enumerate(tile_md5hash_grid):
+
+                if idx1 > idx2:
+                    continue
+
+                tile1_issolid = np.all(sdcic.tile_issolid_grids[img_id][idx1] >= 0)
+                tile2_issolid = np.all(sdcic.tile_issolid_grids[img_id][idx2] >= 0)
+
+                if idx1 == idx2:
+                    if tile1_issolid:
+                        continue
+                    if tile2_issolid:
+                        continue
+                    img_overlap_pairs_dup_keys.append((img_id, img_id, idx1, idx2, 1))
+                    continue
+
+                # if idx1 != idx2:
+                if tile1_md5hash == tile2_md5hash:
+                    continue
+                if tile1_issolid and tile2_issolid:
+                    continue
+
+                bmh1 = sdcic.tile_bm0hash_grids[img_id][idx1]
+                bmh2 = sdcic.tile_bm0hash_grids[img_id][idx2]
+                score = get_hamming_distance_score(bmh1, bmh2)
+
+                if score == 256:
+                    tile1 = sdcic.get_tile(sdcic.get_img(img_id), idx1)
+                    tile2 = sdcic.get_tile(sdcic.get_img(img_id), idx2)
+                    tile3 = fuzzy_join(tile1, tile2)
+                    pix3, cts3 = np.unique(tile3.flatten(), return_counts=True)
+                    if np.max(cts3 / (256 * 256 * 3)) > 0.97:
+                        # skip all the near solid (i.e. blue edge) tiles.
+                        continue
+
+                img_overlap_pairs_non_dup_all.append(KeyScore((img_id, img_id, idx1, idx2, 0), score/256))
+
+    img_overlap_pairs_non_dup_keys_sorted = []
+    for candidate in tqdm(sorted(img_overlap_pairs_non_dup_all, key=operator.attrgetter('score'), reverse=True)):
+        img_overlap_pairs_non_dup_keys_sorted.append(candidate.key)
+
+    img_overlap_pairs_non_dup_keys = img_overlap_pairs_non_dup_keys_sorted[:len(img_overlap_pairs_dup_keys)]
+    img_overlap_pairs = img_overlap_pairs_non_dup_keys + img_overlap_pairs_dup_keys
+
+    # non_dup_scores = []
+    # img_overlap_pairs_non_dup_all_sorted = []
+    # for candidate in tqdm(sorted(img_overlap_pairs_non_dup_all, key=operator.attrgetter('score'), reverse=True)):
+    #     non_dup_scores.append(candidate.score)
+    #     img_overlap_pairs_non_dup_all_sorted.append(candidate)
+    # assert min(non_dup_scores) == non_dup_scores[0], (min(non_dup_scores), non_dup_scores[0])
+    # assert max(non_dup_scores) == non_dup_scores[-1], (max(non_dup_scores), non_dup_scores[-1])
+    # non_dup_scores = non_dup_scores[:len(img_overlap_pairs_dup_keys)]
+    # assert max(non_dup_scores) == non_dup_scores[-1], (max(non_dup_scores), non_dup_scores[-1])
+    # np.random.shuffle(non_dup_scores)
+    # img_overlap_pairs_dup = []
+    # for key, score in zip(img_overlap_pairs_dup_keys, non_dup_scores):
+    #     img_overlap_pairs_dup.append(KeyScore(key, score))
+    # img_overlap_pairs_non_dup_sorted = img_overlap_pairs_non_dup_all_sorted[:len(img_overlap_pairs_dup_keys)]
+    # img_overlap_pairs = img_overlap_pairs_non_dup_sorted + img_overlap_pairs_dup
+
+    return img_overlap_pairs
+
+
 def create_dataset_from_tiles_and_truth(sdcic):
 
     tpl = generate_tag_pair_lookup()
@@ -799,13 +889,12 @@ def even_split(n_samples, batch_size, split):
     # split the database into train/val sizes such that
     # batch_size divides them both evenly.
     # Hack until I can figure out how to ragged end of the database.
-    n_data_crumbs = n_samples % batch_size
-    n_samples = n_samples - n_data_crumbs
-    train_percent = split / 100.
-    n_train = round(n_samples * train_percent)
-    n_valid = n_samples - n_train
-    assert n_train % batch_size == 0
-    assert n_valid % batch_size == 0
+    n_batches = n_samples // batch_size
+    n_train_batches = round(n_batches * split)
+    n_valid_batches = n_batches - n_train_batches
+    n_train = n_train_batches * batch_size
+    n_valid = n_valid_batches * batch_size
+    assert n_train + n_valid <= n_samples, n_train
     return n_train, n_valid
 
 
