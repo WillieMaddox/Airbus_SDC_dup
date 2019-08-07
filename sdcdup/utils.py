@@ -329,7 +329,7 @@ def get_hamming_distance_score(hash1, hash2, normalize=False, as_score=True):
     :param hash1: len 32 ndarray of uint8
     :param hash2: len 32 ndarray of uint8
     :param normalize: bool. If True, normalize the metric [0, 1]
-    :param as_score: bool. flips the hamming metric. The larger the number, the more perfect the match.
+    :param as_score: bool. flips the hamming metric. The larger the score, the more perfect the match.
     :return: float if normalize is True, uint8 otherwise
     """
     h1 = np.unpackbits(hash1)

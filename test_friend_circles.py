@@ -531,7 +531,7 @@ class SDCImage:
 
 
 # TODO: add ability to specify which score types we want retrieved.
-#  Need to figure out what to do about gcm since it holds 5 different score types.
+#  But first need to figure out what to do about gcm since it holds 5 different score types.
 def load_image_overlap_properties(n_matching_tiles_list, score_types=None):
 
     overlap_image_maps = {}
