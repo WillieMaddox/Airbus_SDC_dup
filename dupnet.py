@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import torch.optim as optim
 import torch.nn.functional as F
 
 
@@ -26,14 +25,6 @@ def load_checkpoint(filepath):
                    checkpoint['fc_layers'])
     model.load_state_dict(checkpoint['state_dict'])
     return model
-
-
-def create_loss_and_optimizer(model, learning_rate=0.001):
-    # loss = nn.MSELoss()
-    loss = nn.BCELoss()
-    # loss = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    return loss, optimizer
 
 
 class DupCNN(nn.Module):
