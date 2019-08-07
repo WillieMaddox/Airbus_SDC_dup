@@ -433,29 +433,6 @@ class SDCImageContainer:
 
         return
 
-    def find_valid_pairings_by_search(self, img_list):
-        img_tag_scores = {img_id: self.images[img_id].overlap_image_scores for img_id in img_list}
-        for ii, img1_id in enumerate(img_list):
-            sdc1 = self.images[img1_id]
-            img1 = sdc1.get_img()
-            for jj, img2_id in enumerate(img_list):
-                if jj <= ii:
-                    continue
-                sdc2 = self.images[img2_id]
-                img2 = sdc2.get_img()
-
-                for img1_overlap_tag, img1_overlap_map in overlap_tag_maps.items():
-                    bmh_scores = self.get_bmh_scores(img1, img2, img1_overlap_tag)
-                    if min(bmh_scores) > self.best_score_threshold:
-                        img_tag_scores[img1_id][img1_overlap_tag] = min(bmh_scores)
-                        img_tag_scores[img2_id][overlap_tag_pairs[img1_overlap_tag]] = min(bmh_scores)
-                        sdc1.update_overlap_map(sdc2, bmh_scores, img1_overlap_tag)
-                        sdc2.update_overlap_map(sdc1, bmh_scores, overlap_tag_pairs[img1_overlap_tag])
-                        break
-
-            print(f'{ii}/{len(img_list)}')
-        return img_tag_scores
-
 
 class SDCImage:
 
