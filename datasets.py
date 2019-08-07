@@ -89,7 +89,7 @@ def scale_uint16_to_uint8(array, img_range=None):
         factor = 256.0 / interval
 
     output = array * factor
-    return output
+    return output.astype(np.uint8)
 
 
 def display_image(img_id, image):
@@ -120,6 +120,7 @@ class FileInfo:
         self.gt = None
         self._gsd = None
         self.image_colors = ("Red", "Green", "Blue")
+        self.draw_n_times = 0
         self.tile_codes = None
         self.tile_size = 256
         self.mosaic_size = 3
@@ -232,7 +233,6 @@ class FileInfo:
 
         if self.data_type == "UInt16":
             tile_grid = scale_uint16_to_uint8(tile_grid)
-            tile_grid = tile_grid.astype(np.uint8)
 
         self.generate_tiles(tile_grid)
         self.generate_images(tile_grid)
@@ -246,7 +246,7 @@ class FileInfo:
         assert h == self.tile_size
         output_dir = os.path.join(self.output_dir, f"images_{self.tile_size}")
         os.makedirs(output_dir, exist_ok=True)
-        display_probability = 0 / (y_blocks * x_blocks)
+        display_probability = self.draw_n_times / (y_blocks * x_blocks)
         self.tile_codes = np.zeros((y_blocks, x_blocks), dtype=np.int8)
 
         for y_block in range(y_blocks):
@@ -256,9 +256,9 @@ class FileInfo:
                 tile_id = image_filename_generator(y_block, x_block)
                 tile_filename = os.path.join(output_dir, tile_id)
 
-                if np.any(np.max(tile, axis=(0, 1)) < self.black_cutoff):  # ignore all nearly black tiles
+                if np.all(np.max(tile, axis=(0, 1)) < self.black_cutoff):  # ignore all nearly black tiles
                     self.tile_codes[y_block, x_block] = -1
-                elif np.any(np.min(tile, axis=(0, 1)) > self.white_cutoff):  # ignore all nearly white tiles
+                elif np.all(np.min(tile, axis=(0, 1)) > self.white_cutoff):  # ignore all nearly white tiles
                     self.tile_codes[y_block, x_block] = 1
                 else:
                     tile = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
@@ -277,7 +277,7 @@ class FileInfo:
         assert h * self.mosaic_size == self.image_size
         output_dir = os.path.join(self.output_dir, f"images_{self.image_size}")
         os.makedirs(output_dir, exist_ok=True)
-        display_probability = 0 / (y_blocks * x_blocks)
+        display_probability = self.draw_n_times / (y_blocks * x_blocks)
 
         image_codes = np.zeros((y_blocks, x_blocks), dtype=np.int8)
         image = np.zeros((self.image_size, self.image_size, c), dtype=np.uint8)
@@ -505,7 +505,6 @@ if __name__ == '__main__':
 
     nas_root = "/mnt/nfs/DATA/geos/"
     borg_root = "/media/Borg_LS/DATA/geos/"
-    base_dir = borg_root
 
     # acquisition_files = [
     #     ("high-res-ports", borg_root + "Skysat/high-res-ports/20160928_020257_SSC1d1_0015_L3A_visual.tif"),
@@ -521,33 +520,36 @@ if __name__ == '__main__':
     #         file_info.generate_images_and_tiles(handle=handle)
 
     duplicate_truth_paths = []
-    for dirpath, dirnames, filenames in os.walk(base_dir):
-        for filename in filenames:
-            if filename[-4:] not in (".tif", ".TIF"):
-                continue
-            if filename[:-4].endswith('pansharpened'):
-                continue
-            if filename[:-4].endswith('pansharp'):
-                continue
-            if filename[:-4].endswith('analytic'):
-                continue
-            if filename[:-4].endswith('_dn'):
-                continue
-            file_info = FileInfo(os.path.join(dirpath, filename), base_dir)
-            if not file_info.process():
-                continue
-            # if file_info.handle.startswith("Inria"):
-            #     continue
-            if 'Red' not in file_info.band_colors:
-                continue
-            if len(file_info.band_colors) < 3:
-                continue
-            if file_info.raster_xsize < 4*256:
-                continue
-            if file_info.raster_ysize < 4*256:
-                continue
-            file_info.generate_images_and_tiles()
-            duplicate_truth_paths.append(file_info.handle)
+    dataset_names = ['cowc', 'Inria', 'kaggle', 'Skysat']
+    for dataset_name in dataset_names:
+        base_dir = os.path.join(borg_root, dataset_name)
+        for dirpath, dirnames, filenames in os.walk(base_dir):
+            for filename in filenames:
+                if filename[-4:] not in (".tif", ".TIF"):
+                    continue
+                if filename[:-4].endswith('pansharpened'):
+                    continue
+                if filename[:-4].endswith('pansharp'):
+                    continue
+                if filename[:-4].endswith('analytic'):
+                    continue
+                if filename[:-4].endswith('_dn'):
+                    continue
+                file_info = FileInfo(os.path.join(dirpath, filename), borg_root)
+                if not file_info.process():
+                    continue
+                # if file_info.handle.startswith("Inria"):
+                #     continue
+                if 'Red' not in file_info.band_colors:
+                    continue
+                if len(file_info.band_colors) < 3:
+                    continue
+                if file_info.raster_xsize < 4*256:
+                    continue
+                if file_info.raster_ysize < 4*256:
+                    continue
+                file_info.generate_images_and_tiles()
+                duplicate_truth_paths.append(file_info.handle)
 
     print(f"Number of duplicate truth files: {len(duplicate_truth_paths)}")
     write_duplicate_truth_paths(duplicate_truth_paths, "output/datasets")
