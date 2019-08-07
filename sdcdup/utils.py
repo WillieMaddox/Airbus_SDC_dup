@@ -818,3 +818,18 @@ def update_tile_cliques(G, tile1_hash, tile2_hash):
     T = nx.complete_graph(tile12_neighbors)
     T.add_edges_from([(n, n) for n in tile12_neighbors])
     G.update(T)
+
+
+class CSVLogger:
+    def __init__(self, filename, header):
+        self.filename = filename
+        self.header = header
+
+    def on_epoch_end(self, stats):
+
+        if not os.path.exists(self.filename):
+            with open(self.filename, 'w') as ofs:
+                ofs.write(','.join(self.header) + '\n')
+
+        with open(self.filename, 'a') as ofs:
+            ofs.write(','.join(map(str, stats)) + '\n')
