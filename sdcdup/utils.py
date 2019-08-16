@@ -303,6 +303,39 @@ def convert_tups2nine(tups):
     return b9
 
 
+def rle_decode(rle_string, shape=(768, 768)):
+    """
+    mask_rle: run-length as string formatted (start length)
+    shape: (height,width) of array to return
+    Returns numpy array, 1 - mask, 0 - background
+    """
+    s = rle_string.split()
+    starts, lengths = [np.asarray(x, dtype=int) for x in (s[0:][::2], s[1:][::2])]
+    starts -= 1
+    ends = starts + lengths
+    img = np.zeros(shape[0] * shape[1], dtype=np.uint8)
+    for lo, hi in zip(starts, ends):
+        img[lo:hi] = 1
+    return img.reshape(shape).T  # Needed to align to RLE direction
+
+
+def rle_to_full_mask(rle_list, shape=(768, 768)):
+    """
+    Convert a list of run-length encoded masks to a binary mask.
+    This assumes that there are no overlapping segmentations.
+
+    :param rle_list: List of rle strings corresponding to a single image.
+    :param shape: shape of the single image.
+    :return: return shape will be (1, shape[0], shape[1])
+    """
+    all_masks = np.zeros(shape=shape, dtype=np.uint8)
+    for mask in rle_list:
+        if isinstance(mask, str):
+            all_masks += rle_decode(mask, shape=shape)
+    in_mask = np.array(all_masks, dtype=bool)
+    return np.expand_dims(in_mask, -1)
+
+
 def get_datetime_now(t=None, fmt='%Y_%m%d_%H%M'):
     """Return timestamp as a string; default: current time, format: YYYY_DDMM_hhmm_ss."""
     if t is None:

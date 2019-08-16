@@ -12,6 +12,7 @@ from cv2 import img_hash
 from collections import defaultdict
 from collections import namedtuple
 from sdcdup.utils import idx2ijpair
+from sdcdup.utils import rle_to_full_mask
 from sdcdup.utils import get_hamming_distance_score
 from sdcdup.utils import generate_pair_tag_lookup
 from sdcdup.utils import overlap_tag_pairs
@@ -35,6 +36,14 @@ def filter_duplicates(img_ids):
     new_img_ids = [img_id for img_id in img_ids if img_id not in blacklist]
     # print(len(img_ids), len(blacklist), len(new_img_ids))
     return new_img_ids
+
+
+def get_rles(ship_dir):
+    df = pd.read_csv(os.path.join(ship_dir, "train_ship_segmentations_v2.csv"))
+    df = pd.merge(df, df.groupby('ImageId').size().reset_index(name='cts'))
+    df['cts'] = df.apply(lambda c_row: c_row['cts'] if isinstance(c_row['EncodedPixels'], str) else 0, 1)
+    df = df[df['cts'] >= 1]
+    return {k: list(v) for k, v in df.groupby('ImageId')['EncodedPixels']}
 
 
 class SDCImageContainer:
@@ -254,9 +263,7 @@ class SDCImageContainer:
             df = pd.DataFrame().append(issolid_records)
             df.to_pickle(filename_issolid)
 
-    def preprecess_ship_counts(self, train_seg_file, filename_shipcnt):
-
-        import h5py
+    def preprecess_ship_counts(self, ship_dir, filename_shipcnt):
 
         img_shipcnt_grids = {}
         if os.path.exists(filename_shipcnt):
@@ -265,32 +272,34 @@ class SDCImageContainer:
 
         pp = 0
 
+        rles = None
+
         shipcnt_records = []
 
         img_ids = os.listdir(self.train_image_dir)
-        with h5py.File(train_seg_file, 'r') as full_mask:
-            for img_id in tqdm(sorted(img_ids)):
-                tile_shipcnt_grid = img_shipcnt_grids.get(img_id)
-                if tile_shipcnt_grid is None:
-                    pp += 1
-                    tile_shipcnt_grid = np.zeros(self.n_tiles, dtype=np.int)
-                    if img_id in full_mask:
-                        img = full_mask[img_id][:]
-                        for idx in range(self.n_tiles):
-                            tile = self.get_tile(img, idx)
-                            tile_shipcnt_grid[idx] = np.sum(tile)
+        for img_id in tqdm(sorted(img_ids)):
+            tile_shipcnt_grid = img_shipcnt_grids.get(img_id)
+            if tile_shipcnt_grid is None:
+                pp += 1
+                rles = rles or get_rles(ship_dir)
+                tile_shipcnt_grid = np.zeros(self.n_tiles, dtype=np.int)
+                if img_id in rles:
+                    img = rle_to_full_mask(rles[img_id])
+                    for idx in range(self.n_tiles):
+                        tile = self.get_tile(img, idx)
+                        tile_shipcnt_grid[idx] = np.sum(tile)
 
-                shipcnt_records.append({'ImageId': img_id, 'shipcnt_grid': tile_shipcnt_grid})  # int
-                self.tile_shipcnt_grids[img_id] = tile_shipcnt_grid
+            shipcnt_records.append({'ImageId': img_id, 'shipcnt_grid': tile_shipcnt_grid})  # int
+            self.tile_shipcnt_grids[img_id] = tile_shipcnt_grid
 
-                if pp >= 5000:
-                    df = pd.DataFrame().append(shipcnt_records)
-                    df.to_pickle(filename_shipcnt)
-                    pp = 0
-
-            if pp > 0:
+            if pp >= 5000:
                 df = pd.DataFrame().append(shipcnt_records)
                 df.to_pickle(filename_shipcnt)
+                pp = 0
+
+        if pp > 0:
+            df = pd.DataFrame().append(shipcnt_records)
+            df.to_pickle(filename_shipcnt)
 
     @cachedmethod(operator.attrgetter('cache'))
     def get_img(self, filename, path=None):
@@ -628,9 +637,8 @@ def main():
         image_entropy_grids_file,
         image_issolid_grids_file)
 
-    train_seg_file = os.path.join(ship_dir, "fullmasks_768.h5")
     image_shipcnt_grids_file = os.path.join("data", "image_shipcnt_grids.pkl")
-    sdcic.preprecess_ship_counts(train_seg_file, image_shipcnt_grids_file)
+    sdcic.preprecess_ship_counts(ship_dir, image_shipcnt_grids_file)
 
     n_matching_tiles = 9  # 376407 matches 2:40,    259 pixel_scores 00:03
     # n_matching_tiles = 6  # 376407 matches 3:12,  82823 pixel_scores 16:25
