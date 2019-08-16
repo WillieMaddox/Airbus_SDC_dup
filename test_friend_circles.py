@@ -146,7 +146,7 @@ class SDCImageContainer:
                     tile = self.get_tile(img, idx)
                     tile_md5hash_grid[idx] = hashlib.md5(tile.tobytes()).hexdigest()[:self.tile_md5hash_len]
 
-            md5hash_records.append({'ImageId': img_id, 'md5hash_grid': tile_md5hash_grid})  # str
+            md5hash_records.append({'ImageId': img_id, 'TileData': tile_md5hash_grid})  # str
             self.tile_md5hash_grids[img_id] = tile_md5hash_grid
 
             tile_bm0hash_grid = img_bm0hash_grids.get(img_id)
@@ -158,7 +158,7 @@ class SDCImageContainer:
                     tile = self.get_tile(img, idx)
                     tile_bm0hash_grid[idx] = img_hash.blockMeanHash(tile, mode=0)[0]
 
-            bm0hash_records.append({'ImageId': img_id, 'bm0hash_grid': tile_bm0hash_grid})  # int
+            bm0hash_records.append({'ImageId': img_id, 'TileData': tile_bm0hash_grid})  # int
             self.tile_bm0hash_grids[img_id] = tuple(tuple(bm0) for bm0 in tile_bm0hash_grid)
 
             tile_cm0hash_grid = img_cm0hash_grids.get(img_id)
@@ -170,7 +170,7 @@ class SDCImageContainer:
                     tile = self.get_tile(img, idx)
                     tile_cm0hash_grid[idx] = img_hash.colorMomentHash(tile)[0]
 
-            cm0hash_records.append({'ImageId': img_id, 'cm0hash_grid': tile_cm0hash_grid})  # float
+            cm0hash_records.append({'ImageId': img_id, 'TileData': tile_cm0hash_grid})  # float
             self.tile_cm0hash_grids[img_id] = tile_cm0hash_grid
 
             tile_greycop_grid = img_greycop_grids.get(img_id)
@@ -182,7 +182,7 @@ class SDCImageContainer:
                     tile = self.get_tile(img, idx)
                     tile_greycop_grid[idx] = gen_greycop_hash(tile, self.tile_greycop_len)
 
-            greycop_records.append({'ImageId': img_id, 'greycop_grid': tile_greycop_grid})  # float
+            greycop_records.append({'ImageId': img_id, 'TileData': tile_greycop_grid})  # float
             self.tile_greycop_grids[img_id] = tile_greycop_grid
 
             tile_entropy_grid = img_entropy_grids.get(img_id)
@@ -194,7 +194,7 @@ class SDCImageContainer:
                     tile = self.get_tile(img, idx)
                     tile_entropy_grid[idx] = gen_entropy(tile)
 
-            entropy_records.append({'ImageId': img_id, 'entropy_grid': tile_entropy_grid})  # float
+            entropy_records.append({'ImageId': img_id, 'TileData': tile_entropy_grid})  # float
             self.tile_entropy_grids[img_id] = tile_entropy_grid
 
             tile_issolid_grid = img_issolid_grids.get(img_id)
@@ -206,7 +206,7 @@ class SDCImageContainer:
                     tile = self.get_tile(img, idx)
                     tile_issolid_grid[idx] = get_issolid_flags(tile)
 
-            issolid_records.append({'ImageId': img_id, 'issolid_grid': tile_issolid_grid})  # int
+            issolid_records.append({'ImageId': img_id, 'TileData': tile_issolid_grid})  # int
             self.tile_issolid_grids[img_id] = tile_issolid_grid
 
             if mm >= 5000:
@@ -289,7 +289,7 @@ class SDCImageContainer:
                         tile = self.get_tile(img, idx)
                         tile_shipcnt_grid[idx] = np.sum(tile)
 
-            shipcnt_records.append({'ImageId': img_id, 'shipcnt_grid': tile_shipcnt_grid})  # int
+            shipcnt_records.append({'ImageId': img_id, 'TileData': tile_shipcnt_grid})  # int
             self.tile_shipcnt_grids[img_id] = tile_shipcnt_grid
 
             if pp >= 5000:
