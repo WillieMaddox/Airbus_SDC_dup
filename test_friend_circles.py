@@ -38,8 +38,8 @@ def filter_duplicates(img_ids):
     return new_img_ids
 
 
-def get_rles(ship_dir):
-    df = pd.read_csv(os.path.join(ship_dir, "train_ship_segmentations_v2.csv"))
+def get_rles(ship_file):
+    df = pd.read_csv(ship_file)
     df = pd.merge(df, df.groupby('ImageId').size().reset_index(name='cts'))
     df['cts'] = df.apply(lambda c_row: c_row['cts'] if isinstance(c_row['EncodedPixels'], str) else 0, 1)
     df = df[df['cts'] >= 1]
@@ -48,11 +48,12 @@ def get_rles(ship_dir):
 
 class SDCImageContainer:
 
-    def __init__(self, train_image_dir, cache_size=10000, **kwargs):
+    def __init__(self, data_dir, cache_size=10000, **kwargs):
         # This class assumes images are square and height and width are divisible by tile_size.
         super().__init__(**kwargs)
-        self.train_image_dir = train_image_dir
-        self.h5_file = train_image_dir + '.h5'
+
+        self.train_image_dir = os.path.join(data_dir, 'train_768')
+        self.rle_label_file = os.path.join(data_dir, "train_ship_segmentations_v2.csv")
         self.sz = 256  # tile_size
         self.n_rows = 3
         self.n_cols = 3
@@ -263,7 +264,7 @@ class SDCImageContainer:
             df = pd.DataFrame().append(issolid_records)
             df.to_pickle(filename_issolid)
 
-    def preprecess_ship_counts(self, ship_dir, filename_shipcnt):
+    def preprocess_label_properties(self, filename_shipcnt):
 
         img_shipcnt_grids = {}
         if os.path.exists(filename_shipcnt):
@@ -281,7 +282,7 @@ class SDCImageContainer:
             tile_shipcnt_grid = img_shipcnt_grids.get(img_id)
             if tile_shipcnt_grid is None:
                 pp += 1
-                rles = rles or get_rles(ship_dir)
+                rles = rles or get_rles(self.rle_label_file)
                 tile_shipcnt_grid = np.zeros(self.n_tiles, dtype=np.int)
                 if img_id in rles:
                     img = rle_to_full_mask(rles[img_id])
@@ -619,8 +620,7 @@ def load_image_overlap_properties(n_matching_tiles_list, score_types=None):
 def main():
     ship_dir = "data/input"
 
-    train_image_dir = os.path.join(ship_dir, 'train_768')
-    sdcic = SDCImageContainer(train_image_dir)
+    sdcic = SDCImageContainer(ship_dir)
 
     image_md5hash_grids_file = os.path.join("data", "image_md5hash_grids.pkl")
     image_bm0hash_grids_file = os.path.join("data", "image_bm0hash_grids.pkl")
@@ -638,7 +638,8 @@ def main():
         image_issolid_grids_file)
 
     image_shipcnt_grids_file = os.path.join("data", "image_shipcnt_grids.pkl")
-    sdcic.preprecess_ship_counts(ship_dir, image_shipcnt_grids_file)
+    sdcic.preprocess_label_properties(
+        image_shipcnt_grids_file)
 
     n_matching_tiles = 9  # 376407 matches 2:40,    259 pixel_scores 00:03
     # n_matching_tiles = 6  # 376407 matches 3:12,  82823 pixel_scores 16:25
@@ -660,7 +661,7 @@ def main():
     if not os.path.exists(overlap_bmh_tile_scores_file):
 
         level_overlap_tags = {tag for tag, tiles in overlap_tag_maps.items() if len(tiles) in (n_matching_tiles,)}
-        img_ids = os.listdir(train_image_dir)
+        img_ids = os.listdir(sdcic.train_image_dir)
         # TODO: Use filter for all overlaps here? or just n_matching_tiles?
         # img_ids = filter_duplicates(img_ids)
 
