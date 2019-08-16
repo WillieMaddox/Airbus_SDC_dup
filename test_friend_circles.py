@@ -297,9 +297,12 @@ class SDCImageContainer:
         path = self.train_image_dir if path is None else path
         return cv2.imread(os.path.join(path, filename))
 
+    def _get_tile(self, img, i, j):
+        return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
+
     def get_tile(self, img, idx):
         i, j = idx2ijpair[idx]
-        return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
+        return self._get_tile(img, i, j)
 
     def get_bmh_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
