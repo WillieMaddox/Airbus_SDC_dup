@@ -160,7 +160,7 @@ class SDCImageContainer:
                     tile_bm0hash_grid[idx] = img_hash.blockMeanHash(tile, mode=0)[0]
 
             bm0hash_records.append({'ImageId': img_id, 'TileData': tile_bm0hash_grid})  # int
-            self.tile_bm0hash_grids[img_id] = tuple(tuple(bm0) for bm0 in tile_bm0hash_grid)
+            self.tile_bm0hash_grids[img_id] = tile_bm0hash_grid
 
             tile_cm0hash_grid = img_cm0hash_grids.get(img_id)
             if tile_cm0hash_grid is None:
@@ -668,7 +668,7 @@ def main():
         hash_dict = defaultdict(set)
         for img_id in tqdm(img_ids):
             for h in sdcic.tile_bm0hash_grids[img_id]:
-                hash_dict[h].add(img_id)
+                hash_dict[tuple(h)].add(img_id)
 
         sorted_hash_dict = {}
         for key, dups in sorted(hash_dict.items(), key=lambda x: len(x[1]), reverse=True):
