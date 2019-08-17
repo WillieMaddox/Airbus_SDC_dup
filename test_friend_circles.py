@@ -29,7 +29,7 @@ pair_tag_lookup = generate_pair_tag_lookup()
 
 
 def filter_duplicates(img_ids):
-    df = pd.read_csv('dup_blacklist_6.csv')
+    df = pd.read_csv('data/processed/dup_blacklist_6.csv')
     blacklist = []
     for idx, row in df.iterrows():
         blacklist.append(row['ImageId1'])
@@ -48,12 +48,12 @@ def get_rles(ship_file):
 
 class SDCImageContainer:
 
-    def __init__(self, data_dir, cache_size=10000, **kwargs):
+    def __init__(self, cache_size=10000, **kwargs):
         # This class assumes images are square and height and width are divisible by tile_size.
         super().__init__(**kwargs)
 
-        self.train_image_dir = os.path.join(data_dir, 'train_768')
-        self.rle_label_file = os.path.join(data_dir, "train_ship_segmentations_v2.csv")
+        self.train_image_dir = 'data/raw/train_768/'
+        self.rle_label_file = 'data/raw/train_ship_segmentations_v2.csv/'
         self.sz = 256  # tile_size
         self.n_rows = 3
         self.n_cols = 3
@@ -528,13 +528,13 @@ def load_image_overlap_properties(n_matching_tiles_list, score_types=None):
 
     for n_matching_tiles in n_matching_tiles_list:
 
-        overlap_bmh_tile_scores_file = os.path.join("data", f"overlap_bmh_tile_scores_{n_matching_tiles}.pkl")
-        overlap_cmh_tile_scores_file = os.path.join("data", f"overlap_cmh_tile_scores_{n_matching_tiles}.pkl")
-        overlap_gcm_tile_scores_file = os.path.join("data", f"overlap_gcm_tile_scores_{n_matching_tiles}.pkl")
-        overlap_enp_tile_scores_file = os.path.join("data", f"overlap_enp_tile_scores_{n_matching_tiles}.pkl")
-        overlap_pix_tile_scores_file = os.path.join("data", f"overlap_pix_tile_scores_{n_matching_tiles}.pkl")
-        overlap_px0_tile_scores_file = os.path.join("data", f"overlap_px0_tile_scores_{n_matching_tiles}.pkl")
-        overlap_shp_tile_scores_file = os.path.join("data", f"overlap_shp_tile_scores_{n_matching_tiles}.pkl")
+        overlap_bmh_tile_scores_file = f'data/interim/overlap_bmh_tile_scores_{n_matching_tiles}.pkl'
+        overlap_cmh_tile_scores_file = f'data/interim/overlap_cmh_tile_scores_{n_matching_tiles}.pkl'
+        overlap_gcm_tile_scores_file = f'data/interim/overlap_gcm_tile_scores_{n_matching_tiles}.pkl'
+        overlap_enp_tile_scores_file = f'data/interim/overlap_enp_tile_scores_{n_matching_tiles}.pkl'
+        overlap_pix_tile_scores_file = f'data/interim/overlap_pix_tile_scores_{n_matching_tiles}.pkl'
+        overlap_px0_tile_scores_file = f'data/interim/overlap_px0_tile_scores_{n_matching_tiles}.pkl'
+        overlap_shp_tile_scores_file = f'data/interim/overlap_shp_tile_scores_{n_matching_tiles}.pkl'
 
         df = pd.read_pickle(overlap_bmh_tile_scores_file)
         overlap_bmh_tile_scores = {}
@@ -618,16 +618,15 @@ def load_image_overlap_properties(n_matching_tiles_list, score_types=None):
 
 
 def main():
-    ship_dir = "data/input"
 
-    sdcic = SDCImageContainer(ship_dir)
+    sdcic = SDCImageContainer()
 
-    image_md5hash_grids_file = os.path.join("data", "image_md5hash_grids.pkl")
-    image_bm0hash_grids_file = os.path.join("data", "image_bm0hash_grids.pkl")
-    image_cm0hash_grids_file = os.path.join("data", "image_cm0hash_grids.pkl")
-    image_greycop_grids_file = os.path.join("data", "image_greycop_grids.pkl")
-    image_entropy_grids_file = os.path.join("data", "image_entropy_grids.pkl")
-    image_issolid_grids_file = os.path.join("data", "image_issolid_grids.pkl")
+    image_md5hash_grids_file = 'data/interim/image_md5hash_grids.pkl'
+    image_bm0hash_grids_file = 'data/interim/image_bm0hash_grids.pkl'
+    image_cm0hash_grids_file = 'data/interim/image_cm0hash_grids.pkl'
+    image_greycop_grids_file = 'data/interim/image_greycop_grids.pkl'
+    image_entropy_grids_file = 'data/interim/image_entropy_grids.pkl'
+    image_issolid_grids_file = 'data/interim/image_issolid_grids.pkl'
 
     sdcic.preprocess_image_properties(
         image_md5hash_grids_file,
@@ -637,7 +636,7 @@ def main():
         image_entropy_grids_file,
         image_issolid_grids_file)
 
-    image_shipcnt_grids_file = os.path.join("data", "image_shipcnt_grids.pkl")
+    image_shipcnt_grids_file = 'data/interim/image_shipcnt_grids.pkl'
     sdcic.preprocess_label_properties(
         image_shipcnt_grids_file)
 
@@ -647,13 +646,13 @@ def main():
     # n_matching_tiles = 3  # 376407 matches 2:43,  75936 pixel_scores 12:40
     # n_matching_tiles = 2  # 376407 matches 2:38, 149106 pixel_scores 20:26
     # n_matching_tiles = 1
-    overlap_bmh_tile_scores_file = os.path.join("data", f"overlap_bmh_tile_scores_{n_matching_tiles}.pkl")
-    overlap_cmh_tile_scores_file = os.path.join("data", f"overlap_cmh_tile_scores_{n_matching_tiles}.pkl")
-    overlap_gcm_tile_scores_file = os.path.join("data", f"overlap_gcm_tile_scores_{n_matching_tiles}.pkl")
-    overlap_enp_tile_scores_file = os.path.join("data", f"overlap_enp_tile_scores_{n_matching_tiles}.pkl")
-    overlap_pix_tile_scores_file = os.path.join("data", f"overlap_pix_tile_scores_{n_matching_tiles}.pkl")
-    overlap_px0_tile_scores_file = os.path.join("data", f"overlap_px0_tile_scores_{n_matching_tiles}.pkl")
-    overlap_shp_tile_scores_file = os.path.join("data", f"overlap_shp_tile_scores_{n_matching_tiles}.pkl")
+    overlap_bmh_tile_scores_file = f'data/interim/overlap_bmh_tile_scores_{n_matching_tiles}.pkl'
+    overlap_cmh_tile_scores_file = f'data/interim/overlap_cmh_tile_scores_{n_matching_tiles}.pkl'
+    overlap_gcm_tile_scores_file = f'data/interim/overlap_gcm_tile_scores_{n_matching_tiles}.pkl'
+    overlap_enp_tile_scores_file = f'data/interim/overlap_enp_tile_scores_{n_matching_tiles}.pkl'
+    overlap_pix_tile_scores_file = f'data/interim/overlap_pix_tile_scores_{n_matching_tiles}.pkl'
+    overlap_px0_tile_scores_file = f'data/interim/overlap_px0_tile_scores_{n_matching_tiles}.pkl'
+    overlap_shp_tile_scores_file = f'data/interim/overlap_shp_tile_scores_{n_matching_tiles}.pkl'
 
     # TODO: Use a "matches" file with only "(img1_id, img2_id), img1_overlap_tags"
     #  instead of overlap_bmh_tile_scores_file for a reference in test_friend_circles.py

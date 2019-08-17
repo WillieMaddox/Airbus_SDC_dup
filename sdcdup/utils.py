@@ -392,7 +392,7 @@ def get_hamming_distance(hash1, hash2, normalize=False, as_score=False):
 def get_best_model_name(run_dir):
     best_model = None
     min_loss = 999.9
-    run_dir2 = os.path.join('out', run_dir)
+    run_dir2 = os.path.join('models', run_dir)
     for filename in os.listdir(run_dir2):
         if not filename.endswith('.hdf5'):
             continue
@@ -403,7 +403,7 @@ def get_best_model_name(run_dir):
         if loss <= min_loss:
             best_model = filename
             min_loss = loss
-    best_model_filename = os.path.join('out', run_dir, best_model)
+    best_model_filename = os.path.join('models', run_dir, best_model)
     print(best_model_filename)
     return best_model_filename
 
@@ -643,7 +643,7 @@ def read_duplicate_truth(filename):
     return duplicate_truth
 
 
-def load_duplicate_truth(filepath='data', filename='duplicate_truth.txt', from_chunks=True, chunk_type='all'):
+def load_duplicate_truth(filepath='data/processed', filename='duplicate_truth.txt', from_chunks=True, chunk_type='all'):
     """
     Load in the main single file (duplicate_truth.txt) or load and concatenate all chunk_truth files.
     Should get the same result either way.
@@ -688,7 +688,7 @@ def write_duplicate_truth(filename, duplicate_truth):
             ofs.write(' '.join([img1_id, img2_id, img1_overlap_tag, str(is_duplicate)]) + '\n')
 
 
-def update_duplicate_truth(pre_chunk, filepath='data', filename='duplicate_truth.txt', auto=True):
+def update_duplicate_truth(pre_chunk, filepath='data/processed', filename='duplicate_truth.txt', auto=True):
 
     duplicate_truth = load_duplicate_truth(filepath=filepath, filename=filename)
 
@@ -866,7 +866,7 @@ def create_dataset_from_tiles_and_truth(sdcic):
     n_matching_tiles_list = [9, 6, 4, 3, 2, 1]
     for n_matching_tiles in n_matching_tiles_list:
         # load matches -> [(img1_id, img2_id, img1_overlap_tag), ...]
-        possible_matches_file = os.path.join("data", f"overlap_bmh_tile_scores_{n_matching_tiles}.pkl")
+        possible_matches_file = f'data/interim/overlap_bmh_tile_scores_{n_matching_tiles}.pkl'
         df = pd.read_pickle(possible_matches_file)
         possible_matches = {(i1, i2, o1): s for i1, i2, o1, *s in df.to_dict('split')['data']}
 
