@@ -368,7 +368,7 @@ def int_to_hex(hash_int, hash_len):
     return pad_string(hash_hex, hash_len)
 
 
-def get_hamming_distance_score(hash1, hash2, normalize=False, as_score=True):
+def get_hamming_distance(hash1, hash2, normalize=False, as_score=False):
     """
     The args should be the same datatype as the output type of opencv img_hash blockMeanHash.
     Order does not matter. i.e. hash1, hash2 will produce the same result as hash2, hash1.
@@ -383,10 +383,8 @@ def get_hamming_distance_score(hash1, hash2, normalize=False, as_score=True):
     h2 = np.unpackbits(hash2)
 
     hamming_metric = np.sum(h1 ^ h2, dtype=np.int)
-    if as_score:
-        hamming_metric = 256 - hamming_metric
-    if normalize:
-        hamming_metric = hamming_metric / 256
+    hamming_metric = 256 - hamming_metric if as_score else hamming_metric
+    hamming_metric = hamming_metric / 256 if normalize else hamming_metric
 
     return hamming_metric
 
@@ -772,7 +770,7 @@ def create_dataset_from_tiles(sdcic):
 
                 bmh1 = sdcic.tile_bm0hash_grids[img_id][idx1]
                 bmh2 = sdcic.tile_bm0hash_grids[img_id][idx2]
-                score = get_hamming_distance_score(bmh1, bmh2)
+                score = get_hamming_distance(bmh1, bmh2, as_score=True)
 
                 if score == 256:
                     tile1 = sdcic.get_tile(sdcic.get_img(img_id), idx1)

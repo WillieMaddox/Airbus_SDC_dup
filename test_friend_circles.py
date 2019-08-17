@@ -13,7 +13,7 @@ from collections import defaultdict
 from collections import namedtuple
 from sdcdup.utils import idx2ijpair
 from sdcdup.utils import rle_to_full_mask
-from sdcdup.utils import get_hamming_distance_score
+from sdcdup.utils import get_hamming_distance
 from sdcdup.utils import generate_pair_tag_lookup
 from sdcdup.utils import overlap_tag_pairs
 from sdcdup.utils import overlap_tag_maps
@@ -321,7 +321,7 @@ class SDCImageContainer:
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
             bmh1 = self.tile_bm0hash_grids[img1_id][idx1]
             bmh2 = self.tile_bm0hash_grids[img2_id][idx2]
-            score = get_hamming_distance_score(bmh1, bmh2, normalize=True)
+            score = get_hamming_distance(bmh1, bmh2, normalize=True, as_score=True)
             scores.append(score)
         return scores
 
@@ -414,7 +414,7 @@ class SDCImageContainer:
 
         hamming_distance_lookup = {}
         for img_id in img_list:
-            hamming_list = [get_hamming_distance_score(bmh0, hash_id, as_score=False) for bmh0 in self.tile_bm0hash_grids[img_id]]
+            hamming_list = [get_hamming_distance(bmh0, hash_id) for bmh0 in self.tile_bm0hash_grids[img_id]]
             hamming_distance_lookup[img_id] = np.array(hamming_list)
 
         for i, img1_id in enumerate(img_list):
