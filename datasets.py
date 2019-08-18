@@ -109,7 +109,7 @@ class FileInfo:
         self.filename = filename
         self.file = os.path.basename(filename)
         self.handle = filename.split(base_dir)[-1].rsplit(".")[0]
-        self.output_dir = os.path.join("output/datasets", self.handle)
+        self.output_dir = os.path.join("data/external", self.handle)
         self.raster_xsize = None
         self.raster_ysize = None
         self.band_colors = []
@@ -379,7 +379,7 @@ class FileInfo:
         pass
 
 
-def write_duplicate_truth_paths(duplicate_truth_paths, rootpath=None, filename="duplicate_truth_paths.txt"):
+def write_duplicate_truth_paths(duplicate_truth_paths, rootpath="data/external", filename="duplicate_truth_paths.txt"):
 
     filename = os.path.join(rootpath, filename) if rootpath else filename
     with open(filename, 'w') as ofs:
@@ -387,7 +387,7 @@ def write_duplicate_truth_paths(duplicate_truth_paths, rootpath=None, filename="
             ofs.write(duplicate_truth_path + '\n')
 
 
-def load_duplicate_truth_paths(rootpath=None, filename="duplicate_truth_paths.txt"):
+def load_duplicate_truth_paths(rootpath="data/external", filename="duplicate_truth_paths.txt"):
 
     filename = os.path.join(rootpath, filename) if rootpath else filename
     with open(filename, 'r') as ifs:
@@ -395,7 +395,7 @@ def load_duplicate_truth_paths(rootpath=None, filename="duplicate_truth_paths.tx
     return duplicate_truth_paths
 
 
-def create_dataset_from_truth(rootpath=None, filename="duplicate_truth_paths.txt"):
+def create_dataset_from_truth(rootpath="data/external", filename="duplicate_truth_paths.txt"):
 
     tpl = generate_tag_pair_lookup()
 
@@ -552,6 +552,6 @@ if __name__ == '__main__':
                 duplicate_truth_paths.append(file_info.handle)
 
     print(f"Number of duplicate truth files: {len(duplicate_truth_paths)}")
-    write_duplicate_truth_paths(duplicate_truth_paths, "output/datasets")
+    write_duplicate_truth_paths(duplicate_truth_paths, )
 
-    create_dataset_from_truth("output/datasets")
+    create_dataset_from_truth()
