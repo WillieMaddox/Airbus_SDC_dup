@@ -655,7 +655,7 @@ def main():
     overlap_shp_tile_scores_file = f'data/interim/overlap_shp_tile_scores_{n_matching_tiles}.pkl'
 
     # TODO: Use a "matches" file with only "(img1_id, img2_id), img1_overlap_tags"
-    #  instead of overlap_bmh_tile_scores_file for a reference in test_friend_circles.py
+    #  instead of overlap_bmh_tile_scores_file for a reference in image_features.py
     # blockMeanHash
     if not os.path.exists(overlap_bmh_tile_scores_file):
 
