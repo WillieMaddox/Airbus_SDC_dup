@@ -11,12 +11,13 @@ python-dotenv>=0.5.1
 cachetools
 numpy
 pandas
+jupyter
 tqdm
 parse
 networkx
 scikit-image
 opencv-python
 opencv-contrib-python
-GDAL
+GDAL==2.2.2
 torch
 torchvision
