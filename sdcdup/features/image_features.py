@@ -82,13 +82,15 @@ class SDCImageContainer:
         self.color_cts_solid = self.sz * self.sz
         self.cache = LRUCache(maxsize=cache_size)
 
-    def preprocess_image_properties(self,
-                                    filename_md5hash,
-                                    filename_bm0hash,
-                                    filename_cm0hash,
-                                    filename_greycop,
-                                    filename_entropy,
-                                    filename_issolid):
+    def preprocess_image_properties(
+            self,
+            filename_md5hash='data/interim/image_md5hash_grids.pkl',
+            filename_bm0hash='data/interim/image_bm0hash_grids.pkl',
+            filename_cm0hash='data/interim/image_cm0hash_grids.pkl',
+            filename_greycop='data/interim/image_greycop_grids.pkl',
+            filename_entropy='data/interim/image_entropy_grids.pkl',
+            filename_issolid='data/interim/image_issolid_grids.pkl'):
+
         img_md5hash_grids = {}
         if os.path.exists(filename_md5hash):
             df = pd.read_pickle(filename_md5hash)
@@ -264,7 +266,9 @@ class SDCImageContainer:
             df = pd.DataFrame().append(issolid_records)
             df.to_pickle(filename_issolid)
 
-    def preprocess_label_properties(self, filename_shipcnt):
+    def preprocess_label_properties(
+            self,
+            filename_shipcnt='data/interim/image_shipcnt_grids.pkl'):
 
         img_shipcnt_grids = {}
         if os.path.exists(filename_shipcnt):
@@ -619,24 +623,16 @@ def main():
 
     sdcic = SDCImageContainer()
 
-    image_md5hash_grids_file = 'data/interim/image_md5hash_grids.pkl'
-    image_bm0hash_grids_file = 'data/interim/image_bm0hash_grids.pkl'
-    image_cm0hash_grids_file = 'data/interim/image_cm0hash_grids.pkl'
-    image_greycop_grids_file = 'data/interim/image_greycop_grids.pkl'
-    image_entropy_grids_file = 'data/interim/image_entropy_grids.pkl'
-    image_issolid_grids_file = 'data/interim/image_issolid_grids.pkl'
+    # image_md5hash_grids_file = 'data/interim/image_md5hash_grids.pkl'
+    # image_bm0hash_grids_file = 'data/interim/image_bm0hash_grids.pkl'
+    # image_cm0hash_grids_file = 'data/interim/image_cm0hash_grids.pkl'
+    # image_greycop_grids_file = 'data/interim/image_greycop_grids.pkl'
+    # image_entropy_grids_file = 'data/interim/image_entropy_grids.pkl'
+    # image_issolid_grids_file = 'data/interim/image_issolid_grids.pkl'
+    sdcic.preprocess_image_properties()
 
-    sdcic.preprocess_image_properties(
-        image_md5hash_grids_file,
-        image_bm0hash_grids_file,
-        image_cm0hash_grids_file,
-        image_greycop_grids_file,
-        image_entropy_grids_file,
-        image_issolid_grids_file)
-
-    image_shipcnt_grids_file = 'data/interim/image_shipcnt_grids.pkl'
-    sdcic.preprocess_label_properties(
-        image_shipcnt_grids_file)
+    # image_shipcnt_grids_file = 'data/interim/image_shipcnt_grids.pkl'
+    sdcic.preprocess_label_properties()
 
     n_matching_tiles = 9  # 376407 matches 2:40,    259 pixel_scores 00:03
     # n_matching_tiles = 6  # 376407 matches 3:12,  82823 pixel_scores 16:25
