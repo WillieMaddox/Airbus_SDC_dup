@@ -612,8 +612,6 @@ def load_image_overlap_properties(n_matching_tiles_list, score_types=None):
                     overlap_image_maps[(img1_id, img2_id)] = {}
                 overlap_image_maps[(img1_id, img2_id)][img1_overlap_tag] = overlap_scores
 
-        print(len(overlap_image_maps))
-
     return overlap_image_maps
 
 
