@@ -1,10 +1,12 @@
 import os
+import random
 import operator
 from shutil import copyfile
 from datetime import datetime
 from collections import Counter
 from collections import namedtuple
 from functools import lru_cache
+
 from tqdm import tqdm
 import numpy as np
 import networkx as nx
@@ -13,6 +15,11 @@ import cv2
 from cv2 import img_hash
 from skimage.measure import shannon_entropy
 from skimage.feature import greycomatrix, greycoprops
+import torch
+from torch._six import int_classes as _int_classes
+from torch.utils import data
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from parse import parse
 
 EPS = np.finfo(np.float32).eps
 
@@ -973,7 +980,529 @@ def update_tile_cliques(G, tile1_hash, tile2_hash):
     G.update(T)
 
 
+def get_img(img_id):
+    return cv2.imread(os.path.join(train_image_dir, img_id))
+
+
+class ImgMod:
+    """
+    Reads a single image to be modified by hls.
+    """
+
+    def __init__(self, filename):
+        self.filename = filename
+        self.img_id = filename.split('/')[-1]
+
+        self._hls_chan = None
+        self._hls_gain = None
+
+        self._parent_bgr = None
+        self._parent_hls = None
+        self._parent_rgb = None
+        self._cv2_hls = None
+        self._cv2_bgr = None
+        self._cv2_rgb = None
+
+    def brightness_shift(self, chan, gain):
+        self._hls_chan = chan
+        self._hls_gain = gain
+        self._cv2_hls = None
+        return self.cv2_rgb
+
+    def scale(self, minval, maxval):
+        m = 255.0 * (maxval - minval)
+        res = m * (self.parent_bgr - minval)
+        return np.around(res).astype(np.uint8)
+
+    @property
+    def shape(self):
+        return self.parent_bgr.shape
+
+    @property
+    def parent_bgr(self):
+        if self._parent_bgr is None:
+            self._parent_bgr = cv2.imread(self.filename)
+        return self._parent_bgr
+
+    @property
+    def parent_hls(self):
+        if self._parent_hls is None:
+            self._parent_hls = self.to_hls(self.parent_bgr)
+        return self._parent_hls
+
+    @property
+    def parent_rgb(self):
+        if self._parent_rgb is None:
+            self._parent_rgb = self.to_rgb(self.parent_bgr)
+        return self._parent_rgb
+
+    @property
+    def cv2_hls(self):
+        if self._cv2_hls is None:
+            if self._hls_gain is None:
+                self._cv2_hls = self.parent_hls
+            else:
+                self._cv2_hls = channel_shift(self.parent_hls, self._hls_chan, self._hls_gain)
+        return self._cv2_hls
+
+    @property
+    def cv2_bgr(self):
+        if self._cv2_bgr is None:
+            self._cv2_bgr = self.to_bgr(self.cv2_hls)
+        return self._cv2_bgr
+
+    @property
+    def cv2_rgb(self):
+        if self._cv2_rgb is None:
+            self._cv2_rgb = self.to_rgb(self.cv2_bgr)
+        return self._cv2_rgb
+
+    def to_hls(self, bgr):
+        return cv2.cvtColor(bgr, cv2.COLOR_BGR2HLS_FULL)
+
+    def to_bgr(self, hls):
+        return cv2.cvtColor(hls, cv2.COLOR_HLS2BGR_FULL)
+
+    def to_rgb(self, bgr):
+        return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+
+
+class EvalDataset(data.Dataset):
+    """Characterizes a dataset for PyTorch"""
+
+    def __init__(self, tile_pairs,
+                 image_transform=None,
+                 in_shape=(6, 256, 256),
+                 out_shape=(1,)):
+        """Initialization"""
+        self.sz = 256
+        self.tile_pairs = tile_pairs
+        self.image_transform = image_transform
+        self.ij = ((0, 0), (0, 1), (0, 2),
+                   (1, 0), (1, 1), (1, 2),
+                   (2, 0), (2, 1), (2, 2))
+
+        self.in_shape = in_shape
+        self.out_shape = out_shape
+
+    def __len__(self):
+        """Denotes the total number of samples"""
+        return len(self.tile_pairs)
+
+    def __getitem__(self, index):
+        """Generates one sample of data"""
+        tp = self.tile_pairs[index]
+
+        img1 = get_img(tp.img1_id)
+        img2 = get_img(tp.img2_id)
+
+        tile1 = cv2.cvtColor(self.get_tile(img1, *self.ij[tp.idx1]), cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
+        tile2 = cv2.cvtColor(self.get_tile(img2, *self.ij[tp.idx2]), cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
+
+        X = np.dstack([tile1, tile2])
+        X = X.transpose((2, 0, 1))
+        X = torch.from_numpy(X)
+        return X
+
+    def get_tile(self, img, i, j):
+        return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
+
+
+class WrappedDataLoader:
+    def __init__(self, dl, func):
+        self.dl = dl
+        self.func = func
+
+    def __len__(self):
+        return len(self.dl)
+
+    def __iter__(self):
+        batches = iter(self.dl)
+        for b in batches:
+            yield (self.func(b))
+
+
+class TrainDataset(data.Dataset):
+    """Characterizes a dataset for PyTorch"""
+
+    def __init__(self, img_overlaps, train_or_valid, image_transform,
+                 in_shape=(6, 256, 256),
+                 out_shape=(1,)):
+
+        """Initialization"""
+        self.img_overlaps = img_overlaps
+        # TODO: handle case if train_or_valid == 'test'
+        self.valid = train_or_valid == 'valid'
+        self.image_transform = image_transform
+        self.ij = ((0, 0), (0, 1), (0, 2),
+                   (1, 0), (1, 1), (1, 2),
+                   (2, 0), (2, 1), (2, 2))
+
+        self.in_shape = in_shape
+        self.out_shape = out_shape
+        self.hls_limits = {'H': 10, 'L': 20, 'S': 20}
+        if self.valid:
+            self.img_augs = [self.get_random_augmentation() for _ in self.img_overlaps]
+
+    def __len__(self):
+        """Denotes the total number of samples"""
+        return len(self.img_overlaps)
+
+    def __getitem__(self, index):
+        """Generates one sample of data"""
+        if self.valid:
+            img_aug = self.img_augs[index]
+        else:
+            img_aug = self.get_random_augmentation()
+        return self.get_data_pair(self.img_overlaps[index], img_aug)  # X, y
+
+    def get_random_augmentation(self):
+
+        # So, we aren't always biasing the 'second' image with hls shifting...
+        flip_img_order = np.random.random() > 0.5
+        # The first tile will always come from either a slice of the image or from the saved slice.
+        first_from_large = np.random.random() > 0.5
+        second_from_large = np.random.random() > 0.5
+        second_augment_hls = np.random.random() > 0.25
+        flip_stacking_order = np.random.random() > 0.5
+
+        hls_idx = np.random.choice(3)
+        hls_chan = idx_chan_map[hls_idx]
+        hls_gain = np.random.choice(self.hls_limits[hls_chan]) + 1
+        hls_gain = hls_gain if np.random.random() > 0.5 else -1 * hls_gain
+
+        return flip_img_order, first_from_large, second_from_large, second_augment_hls, hls_chan, hls_gain, flip_stacking_order
+
+    def color_shift(self, img, chan, gain):
+        hls = to_hls(img)
+        hls_shifted = channel_shift(hls, chan, gain)
+        return to_bgr(hls_shifted)
+
+    def get_tile(self, img, idx, sz=256):
+        i, j = self.ij[idx]
+        return img[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
+
+    def read_from_large(self, img_id, idx):
+        img = cv2.imread(os.path.join(train_image_dir, img_id))
+        return self.get_tile(img, idx)
+
+    def read_from_small(self, img_id, idx):
+        filebase, fileext = img_id.split('.')
+        tile_id = f'{filebase}_{idx}.{fileext}'
+        return cv2.imread(os.path.join(train_tile_dir, tile_id))
+
+    def get_data_pair(self, img_overlap, img_aug):
+
+        # diff img_id (img1_id != img2_id), random tile from overlap, where is_dup == 1 (from duplicate_truth.txt)
+        # img1_[i,j], img2_[k,l], 1, exact or fuzzy
+        # img1_[i,j], tile2_kl, 1, exact or fuzzy
+        # tile1_ij, img2_[k,l], 1, exact or fuzzy
+        # tile1_ij, tile2_kl, 1, exact or fuzzy
+
+        # same img_id (img1_id == img2_id), same tile (ij == kl)
+        # img1_[i,j], img1_[i,j], 1, exact
+        # img1_[i,j], tile1_ij, 1, fuzzy
+        # tile1_ij, img1_[i,j], 1, fuzzy
+        # tile1_ij, tile1_ij, 1, exact
+
+        # same img_id (img1_id == img2_id), diff tile (ij != kl)
+        # img1_[i,j], img1_[k,l], 0, similar but different
+        # img1_[i,j], tile1_kl, 0, similar but different
+        # tile1_ij, img1_[k,l], 0, similar but different
+        # tile1_ij, tile1_kl, 0, similar but different
+
+        # diff img_id (img1_id != img2_id), same tile (ij == kl)
+        # img1_[i,j], img2_[i,j], 0, very different
+        # img1_[i,j], tile2_ij, 0, very different
+        # tile1_ij, img2_[i,j], 0, very different
+        # tile1_ij, tile2_ij, 0, very different
+
+        # diff img_id (img1_id != img2_id), diff tile (ij != kl)
+        # img1_[i,j], img2_[k,l], 0, very different
+        # img1_[i,j], tile2_kl, 0, very different
+        # tile1_ij, img2_[k,l], 0, very different
+        # tile1_ij, tile2_kl, 0, very different
+
+        # use image_md5hash_grids.pkl for equal image id pairs (img1_id == img2_id)
+        # --------------------------------------------------------------------
+        # ij == kl? | tile1? | tile2? | shift? | is_dup?
+        # --------------------------------------------------------------------
+        #   yes     |  768   |  768   |   yes  |    yes agro color shift
+        #   yes     |  768   |  768   |    no  |    yes
+        #   yes     |  768   |  256   |    no  |    yes
+        #   yes     |  256   |  768   |    no  |    yes
+        #   yes     |  256   |  256   |   yes  |    yes agro color shift
+        #   yes     |  256   |  256   |    no  |    yes
+        #    no     |  768   |  768   |   yes  |     no
+        #    no     |  768   |  768   |    no  |     no
+        #    no     |  256   |  256   |   yes  |     no
+        #    no     |  256   |  256   |    no  |     no
+
+        # use duplicate_truth.txt for unequal image id pairs (img1_id != img2_id)
+        # NOTE: Be sure to use the overlap_map when comparing ij and kl
+        # --------------------------------------------------------------------
+        # ij == kl? | tile1? | tile2? | shift? | is_dup?
+        # --------------------------------------------------------------------
+        #   yes     |  768   |  768   |   yes  |    yes small color shift
+        #   yes     |  768   |  768   |    no  |    yes
+        #   yes     |  768   |  256   |    no  |    yes
+        #   yes     |  256   |  768   |    no  |    yes
+        #   yes     |  256   |  256   |   yes  |    yes
+        #   yes     |  256   |  256   |    no  |    yes
+        #    no     |  768   |  768   |   yes  |     no
+        #    no     |  768   |  768   |    no  |     no
+        #    no     |  256   |  256   |   yes  |     no
+        #    no     |  256   |  256   |    no  |     no
+
+        flip_img_order, first_from_large, second_from_large, aug_hls, chan, gain, flip_stacking_order = img_aug
+        if flip_img_order:
+            img2_id, img1_id, idx2, idx1, is_dup = img_overlap
+        else:
+            img1_id, img2_id, idx1, idx2, is_dup = img_overlap
+
+        read1 = self.read_from_large if first_from_large else self.read_from_small
+        read2 = self.read_from_large if second_from_large else self.read_from_small
+        same_image = img1_id == img2_id
+
+        if same_image:  # img1_id == img2_id
+            if is_dup:  # idx1 == idx2
+                tile1 = read1(img1_id, idx1)
+                if aug_hls:
+                    tile2 = self.color_shift(tile1, chan, gain)
+                else:
+                    tile2 = read2(img2_id, idx2)
+            else:  # idx1 != idx2
+                if first_from_large and second_from_large:
+                    img = cv2.imread(os.path.join(train_image_dir, img1_id))
+                    tile1 = self.get_tile(img, idx1)
+                    tile2 = self.get_tile(img, idx2)
+                else:
+                    tile1 = read1(img1_id, idx1)
+                    tile2 = read2(img2_id, idx2)
+        else:  # img1_id != img2_id
+            tile1 = read1(img1_id, idx1)
+            tile2 = read2(img2_id, idx2)
+
+        # if is_dup == 0 and sdcic.tile_md5hash_grids[img1_id][idx1] == sdcic.tile_md5hash_grids[img2_id][idx2]:
+        #     print(f'same_image, is_dup: {same_image*1}, {is_dup}')
+        #     print(f'{img1_id} {idx1} -> ({self.ij[idx1][0]},{self.ij[idx1][1]})')
+        #     print(f'{img2_id} {idx2} -> ({self.ij[idx2][0]},{self.ij[idx2][1]})')
+        #     is_dup = 1
+
+        tile1 = cv2.cvtColor(tile1, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
+        tile2 = cv2.cvtColor(tile2, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
+
+        X = np.dstack([tile2, tile1]) if flip_stacking_order else np.dstack([tile1, tile2])
+        X = self.image_transform(X)
+        y = np.array([is_dup], dtype=np.float32)
+        return X, y
+
+
+class ExternalDataset(data.Dataset):
+    """Characterizes a dataset for PyTorch"""
+
+    def __init__(self, img_overlaps, train_or_valid, image_transform,
+                 in_shape=(6, 256, 256),
+                 out_shape=(1,)):
+
+        """Initialization"""
+        self.img_overlaps = img_overlaps
+        # TODO: handle case if train_or_valid == 'test'
+        self.valid = train_or_valid == 'valid'
+        self.image_transform = image_transform
+        self.ij = ((0, 0), (0, 1), (0, 2),
+                   (1, 0), (1, 1), (1, 2),
+                   (2, 0), (2, 1), (2, 2))
+
+        self.in_shape = in_shape
+        self.out_shape = out_shape
+        self.hls_limits = {'H': 10, 'L': 20, 'S': 20}
+        if self.valid:
+            self.img_augs = [self.get_random_augmentation() for _ in self.img_overlaps]
+
+    def __len__(self):
+        """Denotes the total number of samples"""
+        return len(self.img_overlaps)
+
+    def __getitem__(self, index):
+        """Generates one sample of data"""
+        if self.valid:
+            img_aug = self.img_augs[index]
+        else:
+            img_aug = self.get_random_augmentation()
+        return self.get_data_pair(self.img_overlaps[index], img_aug)
+
+    def get_random_augmentation(self):
+
+        p = [0.3, 0.2, 0.2, 0.3]
+        idx3 = np.random.choice(4, p=p)
+
+        hls_idx = np.random.choice(3)
+        hls_chan = idx_chan_map[hls_idx]
+        hls_gain = np.random.choice(self.hls_limits[hls_chan]) + 1
+        hls_gain = hls_gain if np.random.random() > 0.5 else -1 * hls_gain
+
+        return idx3, hls_chan, hls_gain
+
+    def color_shift(self, img, chan, gain):
+        hls = to_hls(img)
+        hls_shifted = channel_shift(hls, chan, gain)
+        return to_bgr(hls_shifted)
+
+    def get_tile(self, img, idx, sz=256):
+        i, j = self.ij[idx]
+        return img[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
+
+    def read_from_large(self, img_id, idx):
+        img = cv2.imread(img_id)
+        return self.get_tile(img, idx)
+
+    def read_from_small(self, img_id, idx):
+        dup_truth_path, img_filename = img_id.rsplit('/images_768/')
+        row, col = parse('r{:3d}_c{:3d}.jpg', img_filename)
+        i, j = self.ij[idx]
+        tile_id = os.path.join(dup_truth_path, 'images_256', f'r{row + i:03d}_c{col + j:03d}.jpg')
+        return cv2.imread(tile_id)
+
+    def get_data_pair(self, img_overlap, img_aug):
+
+        img1_id, img2_id, idx1, idx2, is_dup = img_overlap
+        idx3, chan, gain = img_aug
+        same_image = img1_id == img2_id
+
+        if same_image:  # img1_id == img2_id
+            if is_dup:  # idx1 == idx2
+                if idx3 == 0:
+                    tile1 = self.read_from_large(img1_id, idx1)
+                    tile2 = self.color_shift(tile1, chan, gain)
+                elif idx3 == 1:
+                    tile1 = self.read_from_large(img1_id, idx1)
+                    tile2 = self.read_from_small(img2_id, idx2)
+                elif idx3 == 2:
+                    tile1 = self.read_from_small(img1_id, idx1)
+                    tile2 = self.read_from_large(img2_id, idx2)
+                elif idx3 == 3:
+                    tile1 = self.read_from_small(img1_id, idx1)
+                    tile2 = self.color_shift(tile1, chan, gain)
+                else:
+                    raise ValueError
+            else:  # idx1 != idx2
+                # idx3 = 3
+                if idx3 == 0:  # fast
+                    img = cv2.imread(img1_id)
+                    tile1 = self.get_tile(img, idx1)
+                    tile2 = self.get_tile(img, idx2)
+                elif idx3 == 1:  # slowest
+                    tile1 = self.read_from_large(img1_id, idx1)
+                    tile2 = self.read_from_small(img2_id, idx2)
+                elif idx3 == 2:  # slowest
+                    tile1 = self.read_from_small(img1_id, idx1)
+                    tile2 = self.read_from_large(img2_id, idx2)
+                elif idx3 == 3:  # fastest
+                    tile1 = self.read_from_small(img1_id, idx1)
+                    tile2 = self.read_from_small(img2_id, idx2)
+                else:
+                    raise ValueError
+        else:  # img1_id != img2_id
+            if is_dup:
+                if idx3 == 0:  # slowest
+                    tile1 = self.read_from_large(img1_id, idx1)
+                    tile2 = self.read_from_large(img2_id, idx2)
+                elif idx3 == 1:  # slow
+                    tile1 = self.read_from_large(img1_id, idx1)
+                    tile2 = self.read_from_small(img2_id, idx2)
+                elif idx3 == 2:  # slow
+                    tile1 = self.read_from_small(img1_id, idx1)
+                    tile2 = self.read_from_large(img2_id, idx2)
+                elif idx3 == 3:  # fast
+                    # These end up being the same tile.
+                    tile1 = self.read_from_small(img1_id, idx1)
+                    tile2 = self.color_shift(tile1, chan, gain)
+                else:
+                    raise ValueError
+            else:
+                if idx3 == 0:  # slowest
+                    tile1 = self.read_from_large(img1_id, idx1)
+                    tile2 = self.read_from_large(img2_id, idx2)
+                elif idx3 == 1:  # slow
+                    tile1 = self.read_from_large(img1_id, idx1)
+                    tile2 = self.read_from_small(img2_id, idx2)
+                elif idx3 == 2:  # slow
+                    tile1 = self.read_from_small(img1_id, idx1)
+                    tile2 = self.read_from_large(img2_id, idx2)
+                elif idx3 == 3:  # fast
+                    tile1 = self.read_from_small(img1_id, idx1)
+                    tile2 = self.read_from_small(img2_id, idx2)
+                else:
+                    raise ValueError
+
+        # print(f'same_image, is_dup, idx3: {same_image*1}, {is_dup}, {idx3}')
+        # print(f'{img1_id} {idx1} -> ({self.ij[idx1][0]},{self.ij[idx1][1]})')
+        # print(f'{img2_id} {idx2} -> ({self.ij[idx2][0]},{self.ij[idx2][1]})')
+
+        tile1 = cv2.cvtColor(tile1, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
+        tile2 = cv2.cvtColor(tile2, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
+
+        X = np.dstack([tile1, tile2]) if np.random.random() < 0.5 else np.dstack([tile2, tile1])
+        X = self.image_transform(X)
+        y = np.array([is_dup], dtype=np.float32)
+        return X, y
+
+
+class RandomHorizontalFlip:
+    """Horizontally flip the given numpy array randomly with a given probability.
+
+    Args:
+        p (float): probability of the image being flipped. Default value is 0.5
+    """
+
+    def __init__(self, p=0.5):
+        self.p = p
+
+    def __call__(self, img):
+        """
+        Args:
+            img (Image): Image to be flipped.
+
+        Returns:
+            Image: Randomly flipped image.
+        """
+        if np.random.random() < self.p:
+            return cv2.flip(img, 1)
+        return img
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(p={})'.format(self.p)
+
+
+class RandomTransformC4:
+    """Rotate a n-D tensor by 90 degrees in the H x W plane.
+
+    Args:
+        with_identity (bool): whether or not to include 0 degrees as a probable rotation
+    """
+
+    def __init__(self, with_identity=True):
+        self.with_identity = with_identity
+        self.n90s = (0, 1, 2, 3) if self.with_identity else (1, 2, 3)
+
+    def __call__(self, img):
+        """
+        Args:
+            img (Image): Image to be rotated.
+
+        Returns:
+            Image: Randomly rotated image but in 90 degree increments.
+        """
+        k = random.choice(self.n90s)
+        return torch.rot90(img, k, (1, 2))
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(with_identity={})'.format(self.with_identity)
+
+
 class CSVLogger:
+
     def __init__(self, filename, header):
         self.filename = filename
         self.header = header
@@ -986,3 +1515,148 @@ class CSVLogger:
 
         with open(self.filename, 'a') as ofs:
             ofs.write(','.join(map(str, stats)) + '\n')
+
+
+class ReduceLROnPlateau2(ReduceLROnPlateau):
+
+    def __init__(self, *args, **kwargs):
+        super(ReduceLROnPlateau2, self).__init__(*args, **kwargs)
+
+    def get_lr(self):
+        return [pg['lr'] for pg in self.optimizer.param_groups]
+
+
+class SubsetSampler(data.Sampler):
+    r"""Samples elements sequentially, always in the same order.
+
+    Arguments:
+        indices (sequence): a sequence of indices
+    """
+
+    def __init__(self, indices):
+        self.indices = indices
+
+    def __iter__(self):
+        return iter(self.indices)
+
+    def __len__(self):
+        return len(self.indices)
+
+
+class ImportanceSampler(data.Sampler):
+    r"""Samples elements from [0,..,len(weights)-1] with given probabilities (weights).
+
+    Arguments:
+        num_records (int): Total number of samples in the dataset.
+        num_samples (int): Number of samples to draw from the dataset.
+        batch_size (int): Size of mini-batch.
+
+    """
+
+    def __init__(self, num_records, num_samples, batch_size):
+
+        if not isinstance(num_records, _int_classes) or isinstance(num_records, bool) or num_records <= 0:
+            raise ValueError('num_records should be a positive integral value, but got num_records={}'.format(num_records))
+        if not isinstance(num_samples, _int_classes) or isinstance(num_samples, bool) or num_samples <= 0:
+            raise ValueError('num_samples should be a positive integral value, but got num_samples={}'.format(num_samples))
+        if not isinstance(batch_size, _int_classes) or isinstance(batch_size, bool) or batch_size <= 0:
+            raise ValueError('batch_size should be a positive integral value, but got batch_size={}'.format(batch_size))
+        if num_records < num_samples < batch_size:
+            raise ValueError('num_samples must be less than num_records and greater than batch_size')
+        if num_samples % batch_size != 0:
+            raise ValueError(f'batch_size ({batch_size}) must divide num_samples ({num_samples}) evenly.')
+
+        self.num_steps = 0
+        self.num_epochs = 0
+        self.num_records = num_records
+        self.num_samples = num_samples
+        self.num_batches = num_samples // batch_size
+        self.batch_size = batch_size
+        self.drop_last = True
+
+        self.ages = np.zeros(num_records, dtype=int)
+        self.visits = np.zeros(num_records, dtype=int)
+        # self.losses = np.zeros(num_records) - np.log(0.5)  # dup or non-dup
+        self.losses = np.ones(num_records)
+
+        self.epoch_losses = np.ones(num_samples) * -1.0
+        self._epoch_ages = None
+
+        self.indices = np.random.choice(self.num_records, self.num_samples, replace=False)
+        self.sampler = SubsetSampler(self.indices)
+
+    def __iter__(self):
+        batch = []
+        for idx in self.sampler:
+            batch.append(idx)
+            if len(batch) == self.batch_size:
+                yield batch
+                batch = []
+        if len(batch) > 0 and not self.drop_last:
+            yield batch
+
+    def __len__(self):
+        if self.drop_last:
+            return len(self.sampler) // self.batch_size
+        else:
+            return (len(self.sampler) + self.batch_size - 1) // self.batch_size
+
+    @property
+    def epoch_ages(self):
+        if self._epoch_ages is None:
+            # plus 1 since we're always lagging behind by 1 gradient step.
+            x = np.arange(self.num_batches)[::-1] + 1
+            self._epoch_ages = np.repeat(x, self.batch_size)
+            assert len(self._epoch_ages) == self.num_samples
+        return self._epoch_ages
+
+    def update(self, batch_losses):
+        idx = self.num_steps * self.batch_size
+        self.epoch_losses[idx:idx + self.batch_size] = batch_losses[:, 0]
+        self.num_steps += 1
+
+    def on_epoch_end(self):
+        """Use losses, visits and ages to update weights for samples"""
+
+        assert np.min(self.epoch_losses) >= 0, np.min(self.epoch_losses)
+        # age all records by the number of batches seen this epoch.
+        self.ages += self.num_batches
+        # only update the sampled records since their ages got reset.
+        self.ages[self.indices] = self.epoch_ages
+        # increment visits for samples by one.
+        self.visits[self.indices] += 1
+        # update losses
+        self.losses[self.indices] = self.epoch_losses
+        self.num_epochs += 1
+
+        # normalize
+        norm_ages = self.ages / np.sum(self.ages)
+        # log_ages = np.log(self.ages)
+        # norm_log_ages = log_ages / np.sum(log_ages)
+
+        non_visits = self.num_epochs - self.visits
+        norm_non_visits = non_visits / np.sum(non_visits)
+
+        norm_losses = self.losses / np.sum(self.losses)
+        weights = norm_ages + norm_non_visits + norm_losses
+        # weights = log_ages * (np.sum(self.losses) / np.sum(log_ages)) + self.losses
+        # norm_weights = weights / np.sum(weights)
+
+        # ucb = self.losses + 2 * np.sqrt(np.log(self.ages + 1) / (self.visits + 1))
+        # self.indices = np.argsort(ucb)[-self.num_samples:]
+        # self.indices = np.random.choice(self.num_records, self.num_samples, replace=False, p=self.norm_weights)
+        self.indices = np.argsort(weights)[::-1][:self.num_samples]
+        np.random.shuffle(self.indices)
+
+        self.sampler = SubsetSampler(self.indices)
+        self.num_steps = 0
+        self.epoch_losses *= -1.0
+
+        # print(self.num_epochs)
+        # print(self.ages)
+        # print(non_visits)
+        # print(self.losses)
+        # mask = np.zeros((self.num_records,), dtype=int)
+        # mask[self.indices] = 11
+        # print(mask)
+
