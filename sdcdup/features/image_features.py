@@ -23,8 +23,6 @@ from sdcdup.utils import gen_entropy
 from sdcdup.utils import gen_greycop_hash
 from sdcdup.utils import get_issolid_flags
 
-EPS = np.finfo(np.float32).eps
-
 pair_tag_lookup = generate_pair_tag_lookup()
 
 
