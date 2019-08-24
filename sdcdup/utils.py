@@ -17,6 +17,23 @@ from torch._six import int_classes as _int_classes
 from torch.utils import data
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from parse import parse
+from pathlib import Path
+from dotenv import load_dotenv, find_dotenv
+
+
+def get_project_root() -> str:
+    """Returns project root folder."""
+    return os.fspath(Path(__file__).parent.parent)
+
+
+load_dotenv(find_dotenv())
+
+project_root = get_project_root()
+models_dir = os.path.join(project_root, 'models')
+train_image_dir = os.path.join(project_root, os.getenv('RAW_DATA_DIR'), 'train_768')
+interim_data_dir = os.path.join(project_root, os.getenv('INTERIM_DATA_DIR'))
+train_tile_dir = os.path.join(project_root, os.getenv('PROCESSED_DATA_DIR'), 'train_256')
+processed_data_dir = os.path.join(project_root, os.getenv('PROCESSED_DATA_DIR'))
 
 EPS = np.finfo(np.float32).eps
 
@@ -25,10 +42,6 @@ chan_idx_map = {'H': 0, 'L': 1, 'S': 2}
 chan_cv2_scale_map = {'H': 256, 'L': 256, 'S': 256}
 chan_gimp_scale_map = {'H': 360, 'L': 200, 'S': 100}
 
-
-@lru_cache(maxsize=None)
-def generate_ij_pairs(dim=3):
-    return tuple([(i, j) for i in range(dim) for j in range(dim)])
 
 # There are 24 distinct ways a $3\times3$ grid can overlap with another $3\times3$ grid.
 
@@ -307,6 +320,11 @@ def convert_tups2nine(tups):
     return b9
 
 
+@lru_cache(maxsize=None)
+def generate_ij_pairs(dim=3):
+    return tuple([(i, j) for i in range(dim) for j in range(dim)])
+
+
 def rle_decode(rle_string, shape=(768, 768)):
     """
     mask_rle: run-length as string formatted (start length)
@@ -396,7 +414,7 @@ def get_hamming_distance(hash1, hash2, normalize=False, as_score=False):
 def get_best_model_name(run_dir):
     best_model = None
     min_loss = 999.9
-    run_dir2 = os.path.join('models', run_dir)
+    run_dir2 = os.path.join(models_dir, run_dir)
     for filename in os.listdir(run_dir2):
         if not filename.endswith('.hdf5'):
             continue
@@ -407,7 +425,7 @@ def get_best_model_name(run_dir):
         if loss <= min_loss:
             best_model = filename
             min_loss = loss
-    best_model_filename = os.path.join('models', run_dir, best_model)
+    best_model_filename = os.path.join(models_dir, run_dir, best_model)
     print(best_model_filename)
     return best_model_filename
 
@@ -669,7 +687,7 @@ def read_duplicate_truth(filename):
     return duplicate_truth
 
 
-def load_duplicate_truth(filepath='data/processed', filename='duplicate_truth.txt', from_chunks=True, chunk_type='all'):
+def load_duplicate_truth(filepath=processed_data_dir, filename='duplicate_truth.txt', from_chunks=True, chunk_type='all'):
     """
     Load in the main single file (duplicate_truth.txt) or load and concatenate all chunk_truth files.
     Should get the same result either way.
@@ -714,7 +732,7 @@ def write_duplicate_truth(filename, duplicate_truth):
             ofs.write(' '.join([img1_id, img2_id, img1_overlap_tag, str(is_duplicate)]) + '\n')
 
 
-def update_duplicate_truth(pre_chunk, filepath='data/processed', filename='duplicate_truth.txt', auto=True):
+def update_duplicate_truth(pre_chunk, filepath=processed_data_dir, filename='duplicate_truth.txt', auto=True):
 
     duplicate_truth = load_duplicate_truth(filepath=filepath, filename=filename)
 
@@ -892,8 +910,7 @@ def create_dataset_from_tiles_and_truth(sdcic):
     n_matching_tiles_list = [9, 6, 4, 3, 2, 1]
     for n_matching_tiles in n_matching_tiles_list:
         # load matches -> [(img1_id, img2_id, img1_overlap_tag), ...]
-        possible_matches_file = f'data/interim/overlap_bmh_tile_scores_{n_matching_tiles}.pkl'
-        df = pd.read_pickle(possible_matches_file)
+        df = pd.read_pickle(os.path.join(interim_data_dir, f'overlap_bmh_tile_scores_{n_matching_tiles}.pkl'))
         possible_matches = {(i1, i2, o1): s for i1, i2, o1, *s in df.to_dict('split')['data']}
 
         for img1_id, img2_id, img1_overlap_tag in possible_matches:

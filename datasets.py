@@ -14,8 +14,12 @@ from sdcdup.utils import ij_pairs_3x3
 from sdcdup.utils import ijpair2idx
 from sdcdup.utils import overlap_tag_pairs
 from sdcdup.utils import generate_tag_pair_lookup
+from sdcdup.utils import get_project_root
 from sdcdup.utils import read_duplicate_truth
 from sdcdup.utils import write_duplicate_truth
+
+project_root = get_project_root()
+external_data_dir = os.path.join(project_root, os.getenv('EXTERNAL_DATA_DIR'))
 
 R = 6378137.0  # Radius of the earth in m
 
@@ -109,7 +113,7 @@ class FileInfo:
         self.filename = filename
         self.file = os.path.basename(filename)
         self.handle = filename.split(base_dir)[-1].rsplit(".")[0]
-        self.output_dir = os.path.join("data/external", self.handle)
+        self.output_dir = os.path.join(external_data_dir, self.handle)
         self.raster_xsize = None
         self.raster_ysize = None
         self.band_colors = []
@@ -379,7 +383,7 @@ class FileInfo:
         pass
 
 
-def write_duplicate_truth_paths(duplicate_truth_paths, rootpath="data/external", filename="duplicate_truth_paths.txt"):
+def write_duplicate_truth_paths(duplicate_truth_paths, rootpath=external_data_dir, filename="duplicate_truth_paths.txt"):
 
     filename = os.path.join(rootpath, filename) if rootpath else filename
     with open(filename, 'w') as ofs:
@@ -387,7 +391,7 @@ def write_duplicate_truth_paths(duplicate_truth_paths, rootpath="data/external",
             ofs.write(duplicate_truth_path + '\n')
 
 
-def load_duplicate_truth_paths(rootpath="data/external", filename="duplicate_truth_paths.txt"):
+def load_duplicate_truth_paths(rootpath=external_data_dir, filename="duplicate_truth_paths.txt"):
 
     filename = os.path.join(rootpath, filename) if rootpath else filename
     with open(filename, 'r') as ifs:
@@ -395,7 +399,7 @@ def load_duplicate_truth_paths(rootpath="data/external", filename="duplicate_tru
     return duplicate_truth_paths
 
 
-def create_dataset_from_truth(rootpath="data/external", filename="duplicate_truth_paths.txt"):
+def create_dataset_from_truth(rootpath=external_data_dir, filename="duplicate_truth_paths.txt"):
 
     tpl = generate_tag_pair_lookup()
 

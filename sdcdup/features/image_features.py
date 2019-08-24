@@ -12,6 +12,7 @@ from cv2 import img_hash
 from collections import defaultdict
 from collections import namedtuple
 from sdcdup.utils import idx2ijpair
+from sdcdup.utils import get_project_root
 from sdcdup.utils import rle_to_full_mask
 from sdcdup.utils import get_hamming_distance
 from sdcdup.utils import generate_pair_tag_lookup
@@ -23,11 +24,16 @@ from sdcdup.utils import gen_entropy
 from sdcdup.utils import gen_greycop_hash
 from sdcdup.utils import get_issolid_flags
 
+project_root = get_project_root()
+raw_data_dir = os.path.join(project_root, os.getenv('RAW_DATA_DIR'))
+interim_data_dir = os.path.join(project_root, os.getenv('INTERIM_DATA_DIR'))
+processed_data_dir = os.path.join(project_root, os.getenv('PROCESSED_DATA_DIR'))
+
 pair_tag_lookup = generate_pair_tag_lookup()
 
 
 def filter_duplicates(img_ids):
-    df = pd.read_csv('data/processed/dup_blacklist_6.csv')
+    df = pd.read_csv(os.path.join(processed_data_dir, 'dup_blacklist_6.csv'))
     blacklist = []
     for idx, row in df.iterrows():
         blacklist.append(row['ImageId1'])
@@ -46,12 +52,22 @@ def get_rles(ship_file):
 
 class SDCImageContainer:
 
-    def __init__(self, cache_size=10000, **kwargs):
+    def __init__(self,
+                 cache_size=10000,
+                 filename_md5hash='image_md5hash_grids.pkl',
+                 filename_bm0hash='image_bm0hash_grids.pkl',
+                 filename_cm0hash='image_cm0hash_grids.pkl',
+                 filename_greycop='image_greycop_grids.pkl',
+                 filename_entropy='image_entropy_grids.pkl',
+                 filename_issolid='image_issolid_grids.pkl',
+                 filename_shipcnt='image_shipcnt_grids.pkl',
+                 **kwargs):
+
         # This class assumes images are square and height and width are divisible by tile_size.
         super().__init__(**kwargs)
 
-        self.train_image_dir = 'data/raw/train_768/'
-        self.rle_label_file = 'data/raw/train_ship_segmentations_v2.csv/'
+        self.train_image_dir = os.path.join(raw_data_dir, 'train_768')
+        self.rle_label_file = os.path.join(raw_data_dir, 'train_ship_segmentations_v2.csv')
         self.sz = 256  # tile_size
         self.n_rows = 3
         self.n_cols = 3
@@ -61,18 +77,25 @@ class SDCImageContainer:
         self.tile_md5hash_len = 8
         self.tile_md5hash_dtype = f'<U{self.tile_md5hash_len}'
         self.tile_md5hash_grids = {}
+        self.tile_md5hash_file = os.path.join(interim_data_dir, filename_md5hash)
         self.tile_bm0hash_len = 32
         self.tile_bm0hash_dtype = np.uint8
         self.tile_bm0hash_grids = {}
+        self.tile_bm0hash_file = os.path.join(interim_data_dir, filename_bm0hash)
         self.tile_cm0hash_len = 42
         self.tile_cm0hash_dtype = np.float
         self.tile_cm0hash_grids = {}
+        self.tile_cm0hash_file = os.path.join(interim_data_dir, filename_cm0hash)
         self.tile_greycop_len = 5
         self.tile_greycop_dtype = np.float
         self.tile_greycop_grids = {}
+        self.tile_greycop_file = os.path.join(interim_data_dir, filename_greycop)
         self.tile_entropy_grids = {}
+        self.tile_entropy_file = os.path.join(interim_data_dir, filename_entropy)
         self.tile_issolid_grids = {}
+        self.tile_issolid_file = os.path.join(interim_data_dir, filename_issolid)
         self.tile_shipcnt_grids = {}
+        self.tile_shipcnt_file = os.path.join(interim_data_dir, filename_shipcnt)
         self.matches = {}
         self.bmh_distance_max = 5
         self.overlap_bmh_min_score = 1 - ((self.bmh_distance_max + 20) / 256)
@@ -80,43 +103,36 @@ class SDCImageContainer:
         self.color_cts_solid = self.sz * self.sz
         self.cache = LRUCache(maxsize=cache_size)
 
-    def preprocess_image_properties(
-            self,
-            filename_md5hash='data/interim/image_md5hash_grids.pkl',
-            filename_bm0hash='data/interim/image_bm0hash_grids.pkl',
-            filename_cm0hash='data/interim/image_cm0hash_grids.pkl',
-            filename_greycop='data/interim/image_greycop_grids.pkl',
-            filename_entropy='data/interim/image_entropy_grids.pkl',
-            filename_issolid='data/interim/image_issolid_grids.pkl'):
+    def preprocess_image_properties(self):
 
         img_md5hash_grids = {}
-        if os.path.exists(filename_md5hash):
-            df = pd.read_pickle(filename_md5hash)
+        if os.path.exists(self.tile_md5hash_file):
+            df = pd.read_pickle(self.tile_md5hash_file)
             img_md5hash_grids = {key: val for key, val in df.to_dict('split')['data']}
 
         img_bm0hash_grids = {}
-        if os.path.exists(filename_bm0hash):
-            df = pd.read_pickle(filename_bm0hash)
+        if os.path.exists(self.tile_bm0hash_file):
+            df = pd.read_pickle(self.tile_bm0hash_file)
             img_bm0hash_grids = {key: val for key, val in df.to_dict('split')['data']}
 
         img_cm0hash_grids = {}
-        if os.path.exists(filename_cm0hash):
-            df = pd.read_pickle(filename_cm0hash)
+        if os.path.exists(self.tile_cm0hash_file):
+            df = pd.read_pickle(self.tile_cm0hash_file)
             img_cm0hash_grids = {key: val for key, val in df.to_dict('split')['data']}
 
         img_greycop_grids = {}
-        if os.path.exists(filename_greycop):
-            df = pd.read_pickle(filename_greycop)
+        if os.path.exists(self.tile_greycop_file):
+            df = pd.read_pickle(self.tile_greycop_file)
             img_greycop_grids = {key: val for key, val in df.to_dict('split')['data']}
 
         img_entropy_grids = {}
-        if os.path.exists(filename_entropy):
-            df = pd.read_pickle(filename_entropy)
+        if os.path.exists(self.tile_entropy_file):
+            df = pd.read_pickle(self.tile_entropy_file)
             img_entropy_grids = {key: val for key, val in df.to_dict('split')['data']}
 
         img_issolid_grids = {}
-        if os.path.exists(filename_issolid):
-            df = pd.read_pickle(filename_issolid)
+        if os.path.exists(self.tile_issolid_file):
+            df = pd.read_pickle(self.tile_issolid_file)
             img_issolid_grids = {key: val for key, val in df.to_dict('split')['data']}
 
         mm = 0
@@ -212,65 +228,63 @@ class SDCImageContainer:
 
             if mm >= 5000:
                 df = pd.DataFrame().append(md5hash_records)
-                df.to_pickle(filename_md5hash)
+                df.to_pickle(self.tile_md5hash_file)
                 mm = 0
 
             if hh >= 5000:
                 df = pd.DataFrame().append(bm0hash_records)
-                df.to_pickle(filename_bm0hash)
+                df.to_pickle(self.tile_bm0hash_file)
                 hh = 0
 
             if cc >= 5000:
                 df = pd.DataFrame().append(cm0hash_records)
-                df.to_pickle(filename_cm0hash)
+                df.to_pickle(self.tile_cm0hash_file)
                 cc = 0
 
             if gg >= 5000:
                 df = pd.DataFrame().append(greycop_records)
-                df.to_pickle(filename_greycop)
+                df.to_pickle(self.tile_greycop_file)
                 gg = 0
 
             if ee >= 5000:
                 df = pd.DataFrame().append(entropy_records)
-                df.to_pickle(filename_entropy)
+                df.to_pickle(self.tile_entropy_file)
                 ee = 0
 
             if ss >= 5000:
                 df = pd.DataFrame().append(issolid_records)
-                df.to_pickle(filename_issolid)
+                df.to_pickle(self.tile_issolid_file)
                 ss = 0
 
         if mm > 0:
             df = pd.DataFrame().append(md5hash_records)
-            df.to_pickle(filename_md5hash)
+            df.to_pickle(self.tile_md5hash_file)
 
         if hh > 0:
             df = pd.DataFrame().append(bm0hash_records)
-            df.to_pickle(filename_bm0hash)
+            df.to_pickle(self.tile_bm0hash_file)
 
         if cc > 0:
             df = pd.DataFrame().append(cm0hash_records)
-            df.to_pickle(filename_cm0hash)
+            df.to_pickle(self.tile_cm0hash_file)
 
         if gg > 0:
             df = pd.DataFrame().append(greycop_records)
-            df.to_pickle(filename_greycop)
+            df.to_pickle(self.tile_greycop_file)
 
         if ee > 0:
             df = pd.DataFrame().append(entropy_records)
-            df.to_pickle(filename_entropy)
+            df.to_pickle(self.tile_entropy_file)
 
         if ss > 0:
             df = pd.DataFrame().append(issolid_records)
-            df.to_pickle(filename_issolid)
+            df.to_pickle(self.tile_issolid_file)
 
-    def preprocess_label_properties(
-            self,
-            filename_shipcnt='data/interim/image_shipcnt_grids.pkl'):
+    def preprocess_label_properties(self):
 
         img_shipcnt_grids = {}
-        if os.path.exists(filename_shipcnt):
-            df = pd.read_pickle(filename_shipcnt)
+        if os.path.exists(self.tile_shipcnt_file):
+            df = pd.read_pickle(self.tile_shipcnt_file)
             img_shipcnt_grids = {key: val for key, val in df.to_dict('split')['data']}
 
         pp = 0
@@ -297,12 +311,12 @@ class SDCImageContainer:
 
             if pp >= 5000:
                 df = pd.DataFrame().append(shipcnt_records)
-                df.to_pickle(filename_shipcnt)
+                df.to_pickle(self.tile_shipcnt_file)
                 pp = 0
 
         if pp > 0:
             df = pd.DataFrame().append(shipcnt_records)
-            df.to_pickle(filename_shipcnt)
+            df.to_pickle(self.tile_shipcnt_file)
 
     @cachedmethod(operator.attrgetter('cache'))
     def get_img(self, filename, path=None):
@@ -527,16 +541,14 @@ class SDCImage:
 def load_image_overlap_properties(n_matching_tiles_list, score_types=None):
 
     overlap_image_maps = {}
-
     for n_matching_tiles in n_matching_tiles_list:
-
-        overlap_bmh_tile_scores_file = f'data/interim/overlap_bmh_tile_scores_{n_matching_tiles}.pkl'
-        overlap_cmh_tile_scores_file = f'data/interim/overlap_cmh_tile_scores_{n_matching_tiles}.pkl'
-        overlap_gcm_tile_scores_file = f'data/interim/overlap_gcm_tile_scores_{n_matching_tiles}.pkl'
-        overlap_enp_tile_scores_file = f'data/interim/overlap_enp_tile_scores_{n_matching_tiles}.pkl'
-        overlap_pix_tile_scores_file = f'data/interim/overlap_pix_tile_scores_{n_matching_tiles}.pkl'
-        overlap_px0_tile_scores_file = f'data/interim/overlap_px0_tile_scores_{n_matching_tiles}.pkl'
-        overlap_shp_tile_scores_file = f'data/interim/overlap_shp_tile_scores_{n_matching_tiles}.pkl'
+        overlap_bmh_tile_scores_file = os.path.join(interim_data_dir, f'overlap_bmh_tile_scores_{n_matching_tiles}.pkl')
+        overlap_cmh_tile_scores_file = os.path.join(interim_data_dir, f'overlap_cmh_tile_scores_{n_matching_tiles}.pkl')
+        overlap_gcm_tile_scores_file = os.path.join(interim_data_dir, f'overlap_gcm_tile_scores_{n_matching_tiles}.pkl')
+        overlap_enp_tile_scores_file = os.path.join(interim_data_dir, f'overlap_enp_tile_scores_{n_matching_tiles}.pkl')
+        overlap_pix_tile_scores_file = os.path.join(interim_data_dir, f'overlap_pix_tile_scores_{n_matching_tiles}.pkl')
+        overlap_px0_tile_scores_file = os.path.join(interim_data_dir, f'overlap_px0_tile_scores_{n_matching_tiles}.pkl')
+        overlap_shp_tile_scores_file = os.path.join(interim_data_dir, f'overlap_shp_tile_scores_{n_matching_tiles}.pkl')
 
         df = pd.read_pickle(overlap_bmh_tile_scores_file)
         overlap_bmh_tile_scores = {}
@@ -620,16 +632,7 @@ def load_image_overlap_properties(n_matching_tiles_list, score_types=None):
 def main():
 
     sdcic = SDCImageContainer()
-
-    # image_md5hash_grids_file = 'data/interim/image_md5hash_grids.pkl'
-    # image_bm0hash_grids_file = 'data/interim/image_bm0hash_grids.pkl'
-    # image_cm0hash_grids_file = 'data/interim/image_cm0hash_grids.pkl'
-    # image_greycop_grids_file = 'data/interim/image_greycop_grids.pkl'
-    # image_entropy_grids_file = 'data/interim/image_entropy_grids.pkl'
-    # image_issolid_grids_file = 'data/interim/image_issolid_grids.pkl'
     sdcic.preprocess_image_properties()
-
-    # image_shipcnt_grids_file = 'data/interim/image_shipcnt_grids.pkl'
     sdcic.preprocess_label_properties()
 
     n_matching_tiles = 9  # 376407 matches 2:40,    259 pixel_scores 00:03
@@ -638,13 +641,13 @@ def main():
     # n_matching_tiles = 3  # 376407 matches 2:43,  75936 pixel_scores 12:40
     # n_matching_tiles = 2  # 376407 matches 2:38, 149106 pixel_scores 20:26
     # n_matching_tiles = 1
-    overlap_bmh_tile_scores_file = f'data/interim/overlap_bmh_tile_scores_{n_matching_tiles}.pkl'
-    overlap_cmh_tile_scores_file = f'data/interim/overlap_cmh_tile_scores_{n_matching_tiles}.pkl'
-    overlap_gcm_tile_scores_file = f'data/interim/overlap_gcm_tile_scores_{n_matching_tiles}.pkl'
-    overlap_enp_tile_scores_file = f'data/interim/overlap_enp_tile_scores_{n_matching_tiles}.pkl'
-    overlap_pix_tile_scores_file = f'data/interim/overlap_pix_tile_scores_{n_matching_tiles}.pkl'
-    overlap_px0_tile_scores_file = f'data/interim/overlap_px0_tile_scores_{n_matching_tiles}.pkl'
-    overlap_shp_tile_scores_file = f'data/interim/overlap_shp_tile_scores_{n_matching_tiles}.pkl'
+    overlap_bmh_tile_scores_file = os.path.join(interim_data_dir, f'overlap_bmh_tile_scores_{n_matching_tiles}.pkl')
+    overlap_cmh_tile_scores_file = os.path.join(interim_data_dir, f'overlap_cmh_tile_scores_{n_matching_tiles}.pkl')
+    overlap_gcm_tile_scores_file = os.path.join(interim_data_dir, f'overlap_gcm_tile_scores_{n_matching_tiles}.pkl')
+    overlap_enp_tile_scores_file = os.path.join(interim_data_dir, f'overlap_enp_tile_scores_{n_matching_tiles}.pkl')
+    overlap_pix_tile_scores_file = os.path.join(interim_data_dir, f'overlap_pix_tile_scores_{n_matching_tiles}.pkl')
+    overlap_px0_tile_scores_file = os.path.join(interim_data_dir, f'overlap_px0_tile_scores_{n_matching_tiles}.pkl')
+    overlap_shp_tile_scores_file = os.path.join(interim_data_dir, f'overlap_shp_tile_scores_{n_matching_tiles}.pkl')
 
     # TODO: Use a "matches" file with only "(img1_id, img2_id), img1_overlap_tags"
     #  instead of overlap_bmh_tile_scores_file for a reference in image_features.py
