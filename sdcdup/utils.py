@@ -923,8 +923,8 @@ def create_dataset_from_tiles_and_truth(sdcic):
             for img1_far_tag in far_away_corners[img1_overlap_tag]:
                 bmh_scores = sdcic.get_bmh_scores(img1_id, img2_id, img1_far_tag)
                 far_scores.append(bmh_scores[0])
-            # The score has to be lower than sdcic.overlap_bmh_min_score.
-            if min(far_scores) > sdcic.overlap_bmh_min_score:
+            # The score has to be lower than sdcic.matches_threshold.
+            if min(far_scores) > sdcic.matches_threshold:
                 continue
             # Keep the one that has the lowest score.
             idx1, idx2 = tpl[far_away_corners[img1_overlap_tag][far_scores.index(min(far_scores))]][0]
@@ -956,8 +956,8 @@ def create_dataset_from_tiles_and_truth(sdcic):
         # Probably won't ever happen but just in case...
         if (img1_id, img2_id) in dup_pairs or (img1_id, img2_id, img1_overlap_tag) in dup_truth:
             continue
-        # The score has to be lower than sdcic.overlap_bmh_min_score.
-        if sdcic.get_bmh_scores(img1_id, img2_id, img1_overlap_tag)[0] > sdcic.overlap_bmh_min_score:
+        # The score has to be lower than sdcic.matches_threshold.
+        if sdcic.get_bmh_scores(img1_id, img2_id, img1_overlap_tag)[0] > sdcic.matches_threshold:
             continue
         # Keep the one that has the lowest score.
         idx1, idx2 = tpl[img1_overlap_tag][0]
