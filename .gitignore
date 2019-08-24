@@ -107,8 +107,9 @@ venv.bak/
 .idea/
 
 # Project specific
-/data/
-/temp/
-/output/
+/data/raw/
+/data/interim/
+/data/external/
+/data/processed/
 /models/
 /notebooks/archive/
