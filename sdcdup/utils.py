@@ -2,13 +2,13 @@ import os
 import random
 import operator
 from datetime import datetime
-from collections import namedtuple
 from functools import lru_cache
+from collections import namedtuple
 
 from tqdm import tqdm
 import numpy as np
-import networkx as nx
 import pandas as pd
+import networkx as nx
 import cv2
 from skimage.measure import shannon_entropy
 from skimage.feature import greycomatrix, greycoprops
@@ -240,9 +240,6 @@ def generate_overlap_tag_slices():
             '88': (sd['22'], sd['22'])}
 
 
-overlap_tag_slices = generate_overlap_tag_slices()
-
-
 def generate_pair_tag_lookup():
     ptl = {}
     for tag1, tag2 in overlap_tag_pairs.items():
@@ -414,24 +411,6 @@ def fuzzy_compare(tile1, tile2):
     ab = fuzzy_join(tile1, tile2)
     n = 255 * np.prod(ab.shape)
     return np.sum(255 - ab) / n
-
-
-def check_exact_match(img1, img2, img1_overlap_tag):
-    img1_slice = img1[overlap_tag_slices[img1_overlap_tag]]
-    img2_slice = img2[overlap_tag_slices[overlap_tag_pairs[img1_overlap_tag]]]
-    return np.all(img1_slice == img2_slice)
-
-
-def check_fuzzy_diff(img1, img2, img1_overlap_tag):
-    img1_slice = img1[overlap_tag_slices[img1_overlap_tag]]
-    img2_slice = img2[overlap_tag_slices[overlap_tag_pairs[img1_overlap_tag]]]
-    return fuzzy_diff(img1_slice, img2_slice)
-
-
-def check_fuzzy_score(img1, img2, img1_overlap_tag):
-    img1_slice = img1[overlap_tag_slices[img1_overlap_tag]]
-    img2_slice = img2[overlap_tag_slices[overlap_tag_pairs[img1_overlap_tag]]]
-    return fuzzy_compare(img1_slice, img2_slice)
 
 
 def get_issolid_flags(tile):
@@ -1109,67 +1088,6 @@ class TrainDataset(data.Dataset):
 
     def get_data_pair(self, img_overlap, img_aug):
 
-        # diff img_id (img1_id != img2_id), random tile from overlap, where is_dup == 1 (from duplicate_truth.txt)
-        # img1_[i,j], img2_[k,l], 1, exact or fuzzy
-        # img1_[i,j], tile2_kl, 1, exact or fuzzy
-        # tile1_ij, img2_[k,l], 1, exact or fuzzy
-        # tile1_ij, tile2_kl, 1, exact or fuzzy
-
-        # same img_id (img1_id == img2_id), same tile (ij == kl)
-        # img1_[i,j], img1_[i,j], 1, exact
-        # img1_[i,j], tile1_ij, 1, fuzzy
-        # tile1_ij, img1_[i,j], 1, fuzzy
-        # tile1_ij, tile1_ij, 1, exact
-
-        # same img_id (img1_id == img2_id), diff tile (ij != kl)
-        # img1_[i,j], img1_[k,l], 0, similar but different
-        # img1_[i,j], tile1_kl, 0, similar but different
-        # tile1_ij, img1_[k,l], 0, similar but different
-        # tile1_ij, tile1_kl, 0, similar but different
-
-        # diff img_id (img1_id != img2_id), same tile (ij == kl)
-        # img1_[i,j], img2_[i,j], 0, very different
-        # img1_[i,j], tile2_ij, 0, very different
-        # tile1_ij, img2_[i,j], 0, very different
-        # tile1_ij, tile2_ij, 0, very different
-
-        # diff img_id (img1_id != img2_id), diff tile (ij != kl)
-        # img1_[i,j], img2_[k,l], 0, very different
-        # img1_[i,j], tile2_kl, 0, very different
-        # tile1_ij, img2_[k,l], 0, very different
-        # tile1_ij, tile2_kl, 0, very different
-
-        # use image_md5hash_grids.pkl for equal image id pairs (img1_id == img2_id)
-        # --------------------------------------------------------------------
-        # ij == kl? | tile1? | tile2? | shift? | is_dup?
-        # --------------------------------------------------------------------
-        #   yes     |  768   |  768   |   yes  |    yes agro color shift
-        #   yes     |  768   |  768   |    no  |    yes
-        #   yes     |  768   |  256   |    no  |    yes
-        #   yes     |  256   |  768   |    no  |    yes
-        #   yes     |  256   |  256   |   yes  |    yes agro color shift
-        #   yes     |  256   |  256   |    no  |    yes
-        #    no     |  768   |  768   |   yes  |     no
-        #    no     |  768   |  768   |    no  |     no
-        #    no     |  256   |  256   |   yes  |     no
-        #    no     |  256   |  256   |    no  |     no
-
-        # use duplicate_truth.txt for unequal image id pairs (img1_id != img2_id)
-        # NOTE: Be sure to use the overlap_map when comparing ij and kl
-        # --------------------------------------------------------------------
-        # ij == kl? | tile1? | tile2? | shift? | is_dup?
-        # --------------------------------------------------------------------
-        #   yes     |  768   |  768   |   yes  |    yes small color shift
-        #   yes     |  768   |  768   |    no  |    yes
-        #   yes     |  768   |  256   |    no  |    yes
-        #   yes     |  256   |  768   |    no  |    yes
-        #   yes     |  256   |  256   |   yes  |    yes
-        #   yes     |  256   |  256   |    no  |    yes
-        #    no     |  768   |  768   |   yes  |     no
-        #    no     |  768   |  768   |    no  |     no
-        #    no     |  256   |  256   |   yes  |     no
-        #    no     |  256   |  256   |    no  |     no
-
         flip_img_order, first_from_large, second_from_large, aug_hls, chan, gain, flip_stacking_order = img_aug
         if flip_img_order:
             img2_id, img1_id, idx2, idx1, is_dup = img_overlap
@@ -1281,6 +1199,67 @@ class ExternalDataset(data.Dataset):
         return cv2.imread(tile_id)
 
     def get_data_pair(self, img_overlap, img_aug):
+
+        # diff img_id (img1_id != img2_id), random tile from overlap, where is_dup == 1 (from duplicate_truth.txt)
+        # img1_[i,j], img2_[k,l], 1, exact or fuzzy
+        # img1_[i,j], tile2_kl, 1, exact or fuzzy
+        # tile1_ij, img2_[k,l], 1, exact or fuzzy
+        # tile1_ij, tile2_kl, 1, exact or fuzzy
+
+        # same img_id (img1_id == img2_id), same tile (ij == kl)
+        # img1_[i,j], img1_[i,j], 1, exact
+        # img1_[i,j], tile1_ij, 1, fuzzy
+        # tile1_ij, img1_[i,j], 1, fuzzy
+        # tile1_ij, tile1_ij, 1, exact
+
+        # same img_id (img1_id == img2_id), diff tile (ij != kl)
+        # img1_[i,j], img1_[k,l], 0, similar but different
+        # img1_[i,j], tile1_kl, 0, similar but different
+        # tile1_ij, img1_[k,l], 0, similar but different
+        # tile1_ij, tile1_kl, 0, similar but different
+
+        # diff img_id (img1_id != img2_id), same tile (ij == kl)
+        # img1_[i,j], img2_[i,j], 0, very different
+        # img1_[i,j], tile2_ij, 0, very different
+        # tile1_ij, img2_[i,j], 0, very different
+        # tile1_ij, tile2_ij, 0, very different
+
+        # diff img_id (img1_id != img2_id), diff tile (ij != kl)
+        # img1_[i,j], img2_[k,l], 0, very different
+        # img1_[i,j], tile2_kl, 0, very different
+        # tile1_ij, img2_[k,l], 0, very different
+        # tile1_ij, tile2_kl, 0, very different
+
+        # use image_md5hash_grids.pkl for equal image id pairs (img1_id == img2_id)
+        # --------------------------------------------------------------------
+        # ij == kl? | tile1? | tile2? | shift? | is_dup?
+        # --------------------------------------------------------------------
+        #   yes     |  768   |  768   |   yes  |    yes agro color shift
+        #   yes     |  768   |  768   |    no  |    yes
+        #   yes     |  768   |  256   |    no  |    yes
+        #   yes     |  256   |  768   |    no  |    yes
+        #   yes     |  256   |  256   |   yes  |    yes agro color shift
+        #   yes     |  256   |  256   |    no  |    yes
+        #    no     |  768   |  768   |   yes  |     no
+        #    no     |  768   |  768   |    no  |     no
+        #    no     |  256   |  256   |   yes  |     no
+        #    no     |  256   |  256   |    no  |     no
+
+        # use duplicate_truth.txt for unequal image id pairs (img1_id != img2_id)
+        # NOTE: Be sure to use the overlap_map when comparing ij and kl
+        # --------------------------------------------------------------------
+        # ij == kl? | tile1? | tile2? | shift? | is_dup?
+        # --------------------------------------------------------------------
+        #   yes     |  768   |  768   |   yes  |    yes small color shift
+        #   yes     |  768   |  768   |    no  |    yes
+        #   yes     |  768   |  256   |    no  |    yes
+        #   yes     |  256   |  768   |    no  |    yes
+        #   yes     |  256   |  256   |   yes  |    yes
+        #   yes     |  256   |  256   |    no  |    yes
+        #    no     |  768   |  768   |   yes  |     no
+        #    no     |  768   |  768   |    no  |     no
+        #    no     |  256   |  256   |   yes  |     no
+        #    no     |  256   |  256   |    no  |     no
 
         img1_id, img2_id, idx1, idx2, is_dup = img_overlap
         idx3, chan, gain = img_aug
