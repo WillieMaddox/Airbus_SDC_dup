@@ -2,6 +2,12 @@
 import numpy as np
 
 
+def get_ticks(img_size=768, dtick=256, hist_size=256):
+    n_ticks = img_size // dtick + 1
+    ticks = [i * dtick * hist_size // 256 for i in range(n_ticks)]
+    return ticks
+
+
 def holt_winters_second_order_ewma(x, span, beta):
     # Ref http://connor-johnson.com/2014/02/01/smoothing-with-exponentially-weighted-moving-averages/
     N = x.size

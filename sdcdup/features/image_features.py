@@ -1,16 +1,17 @@
 import os
 import hashlib
 import operator
+from collections import defaultdict
+from collections import namedtuple
 
 from cachetools import LRUCache
 from cachetools import cachedmethod
+from tqdm import tqdm
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 import cv2
 from cv2 import img_hash
-from collections import defaultdict
-from collections import namedtuple
+
 from sdcdup.utils import idx2ijpair
 from sdcdup.utils import get_project_root
 from sdcdup.utils import rle_to_full_mask
