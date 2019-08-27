@@ -12,7 +12,6 @@ from torch._six import int_classes as _int_classes
 from torch.utils import data
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from parse import parse
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 
@@ -289,23 +288,6 @@ def rle_to_full_mask(rle_list, shape=(768, 768)):
     return np.expand_dims(in_mask, -1)
 
 
-def get_datetime_now(t=None, fmt='%Y_%m%d_%H%M'):
-    """Return timestamp as a string; default: current time, format: YYYY_DDMM_hhmm_ss."""
-    if t is None:
-        t = datetime.now()
-    return t.strftime(fmt)
-
-
-def quick_stats(arr):
-    print(arr.shape, arr.dtype, np.min(arr), np.max(arr), np.mean(arr), np.std(arr), np.sum(arr))
-
-
-def bce(y_true, y_pred, **kwargs):
-    y_pred = np.clip(y_pred, EPS, 1. - EPS)
-    out = -(y_true * np.log(y_pred) + (1.0 - y_true) * np.log(1.0 - y_pred))
-    return np.mean(out, axis=-1)
-
-
 def pad_string(x, n):
     padding = n - len(x)
     x_new = x if padding <= 0 else ''.join(['0' * padding, x])
@@ -319,6 +301,13 @@ def hex_to_int(hash_hex):
 def int_to_hex(hash_int, hash_len):
     hash_hex = hex(hash_int)[2:]
     return pad_string(hash_hex, hash_len)
+
+
+def get_datetime_now(t=None, fmt='%Y_%m%d_%H%M'):
+    """Return timestamp as a string; default: current time, format: YYYY_DDMM_hhmm_ss."""
+    if t is None:
+        t = datetime.now()
+    return t.strftime(fmt)
 
 
 def get_hamming_distance(hash1, hash2, normalize=False, as_score=False):
@@ -340,30 +329,6 @@ def get_hamming_distance(hash1, hash2, normalize=False, as_score=False):
     hamming_metric = hamming_metric / 256 if normalize else hamming_metric
 
     return hamming_metric
-
-
-def get_best_model_name(run_dir):
-    best_model = None
-    min_loss = 999.9
-    run_dir2 = os.path.join(models_dir, run_dir)
-    for filename in os.listdir(run_dir2):
-        if not filename.endswith('.hdf5'):
-            continue
-        if '.last.' in filename:
-            continue
-        filebase = filename.rsplit('.', maxsplit=1)[0]
-        loss = float(filebase.split('-')[1])
-        if loss <= min_loss:
-            best_model = filename
-            min_loss = loss
-    best_model_filename = os.path.join(models_dir, run_dir, best_model)
-    print(best_model_filename)
-    return best_model_filename
-
-
-def get_tile(img, idx, sz=256):
-    i, j = idx2ijpair[idx]
-    return img[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
 
 
 def relative_diff(val1, val2, func='max'):
@@ -407,56 +372,6 @@ def fuzzy_compare(tile1, tile2):
     ab = fuzzy_join(tile1, tile2)
     n = 255 * np.prod(ab.shape)
     return np.sum(255 - ab) / n
-
-
-def to_hls(bgr):
-    return cv2.cvtColor(bgr, cv2.COLOR_BGR2HLS_FULL)
-
-
-def to_bgr(hls):
-    return cv2.cvtColor(hls, cv2.COLOR_HLS2BGR_FULL)
-
-
-def channel_shift(img, chan, val):
-    """
-    img must already be in hls (hue, lightness, saturation) format.
-    img values must be uint8. [0, 255] so that hue will wrap around correctly.
-    """
-
-    gimp_scale = chan_gimp_scale_map[chan]
-    idx = chan_idx_map[chan]
-
-    # TODO: Add a plot showing how we arrived at each of the three scaling options.
-    if idx == 0:  # hue
-
-        scaled_val = 255. * val / gimp_scale
-        scaled_val = np.around(scaled_val).astype(np.uint8)
-        scaled_img = np.copy(img)
-        scaled_img[:, :, idx] += scaled_val  # this line won't work correctly if img is not in bytes.
-
-    elif idx == 1:  # lightness
-
-        l = img[:, :, idx] * (1. / 255.)
-        v2 = val / gimp_scale
-        one_m_v2 = 1 - v2
-        one_p_v2 = 1 + v2
-        l_shifted = l * one_m_v2 + v2 if val > 0 else l * one_p_v2
-        l_shifted = np.clip(l_shifted, 0, 1)
-        scaled_img = np.copy(img)
-        scaled_img[:, :, idx] = np.around(255 * l_shifted).astype(np.uint8)
-
-    elif idx == 2:  # saturation
-
-        scaled_val = (val / gimp_scale) + 1.
-        s_shifted = img[:, :, idx] * scaled_val
-        s_shifted = np.clip(s_shifted, 0, 255)
-        scaled_img = np.copy(img)
-        scaled_img[:, :, idx] = np.around(s_shifted).astype(np.uint8)
-
-    else:
-        raise ValueError
-
-    return scaled_img
 
 
 def read_duplicate_truth(filename):
@@ -589,6 +504,61 @@ def get_img(img_id):
     return cv2.imread(os.path.join(train_image_dir, img_id))
 
 
+def get_tile(img, idx, sz=256):
+    i, j = idx2ijpair[idx]
+    return img[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
+
+
+def to_hls(bgr):
+    return cv2.cvtColor(bgr, cv2.COLOR_BGR2HLS_FULL)
+
+
+def to_bgr(hls):
+    return cv2.cvtColor(hls, cv2.COLOR_HLS2BGR_FULL)
+
+
+def channel_shift(img, chan, val):
+    """
+    img must already be in hls (hue, lightness, saturation) format.
+    img values must be uint8. [0, 255] so that hue will wrap around correctly.
+    """
+
+    gimp_scale = chan_gimp_scale_map[chan]
+    idx = chan_idx_map[chan]
+
+    # TODO: Add a plot showing how we arrived at each of the three scaling options.
+    if idx == 0:  # hue
+
+        scaled_val = 255. * val / gimp_scale
+        scaled_val = np.around(scaled_val).astype(np.uint8)
+        scaled_img = np.copy(img)
+        scaled_img[:, :, idx] += scaled_val  # this line won't work correctly if img is not in bytes.
+
+    elif idx == 1:  # lightness
+
+        l = img[:, :, idx] * (1. / 255.)
+        v2 = val / gimp_scale
+        one_m_v2 = 1 - v2
+        one_p_v2 = 1 + v2
+        l_shifted = l * one_m_v2 + v2 if val > 0 else l * one_p_v2
+        l_shifted = np.clip(l_shifted, 0, 1)
+        scaled_img = np.copy(img)
+        scaled_img[:, :, idx] = np.around(255 * l_shifted).astype(np.uint8)
+
+    elif idx == 2:  # saturation
+
+        scaled_val = (val / gimp_scale) + 1.
+        s_shifted = img[:, :, idx] * scaled_val
+        s_shifted = np.clip(s_shifted, 0, 255)
+        scaled_img = np.copy(img)
+        scaled_img[:, :, idx] = np.around(s_shifted).astype(np.uint8)
+
+    else:
+        raise ValueError
+
+    return scaled_img
+
+
 class ImgMod:
     """
     Reads a single image to be modified by hls.
@@ -670,218 +640,6 @@ class ImgMod:
 
     def to_rgb(self, bgr):
         return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-
-
-class ExternalDataset(data.Dataset):
-    """Characterizes a dataset for PyTorch"""
-
-    def __init__(self, img_overlaps, train_or_valid, image_transform,
-                 in_shape=(6, 256, 256),
-                 out_shape=(1,)):
-
-        """Initialization"""
-        self.img_overlaps = img_overlaps
-        # TODO: handle case if train_or_valid == 'test'
-        self.valid = train_or_valid == 'valid'
-        self.image_transform = image_transform
-        self.ij = ((0, 0), (0, 1), (0, 2),
-                   (1, 0), (1, 1), (1, 2),
-                   (2, 0), (2, 1), (2, 2))
-
-        self.in_shape = in_shape
-        self.out_shape = out_shape
-        self.hls_limits = {'H': 10, 'L': 20, 'S': 20}
-        if self.valid:
-            self.img_augs = [self.get_random_augmentation() for _ in self.img_overlaps]
-
-    def __len__(self):
-        """Denotes the total number of samples"""
-        return len(self.img_overlaps)
-
-    def __getitem__(self, index):
-        """Generates one sample of data"""
-        if self.valid:
-            img_aug = self.img_augs[index]
-        else:
-            img_aug = self.get_random_augmentation()
-        return self.get_data_pair(self.img_overlaps[index], img_aug)
-
-    def get_random_augmentation(self):
-
-        p = [0.3, 0.2, 0.2, 0.3]
-        idx3 = np.random.choice(4, p=p)
-
-        hls_idx = np.random.choice(3)
-        hls_chan = idx_chan_map[hls_idx]
-        hls_gain = np.random.choice(self.hls_limits[hls_chan]) + 1
-        hls_gain = hls_gain if np.random.random() > 0.5 else -1 * hls_gain
-
-        return idx3, hls_chan, hls_gain
-
-    def color_shift(self, img, chan, gain):
-        hls = to_hls(img)
-        hls_shifted = channel_shift(hls, chan, gain)
-        return to_bgr(hls_shifted)
-
-    def get_tile(self, img, idx, sz=256):
-        i, j = self.ij[idx]
-        return img[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
-
-    def read_from_large(self, img_id, idx):
-        img = cv2.imread(img_id)
-        return self.get_tile(img, idx)
-
-    def read_from_small(self, img_id, idx):
-        dup_truth_path, img_filename = img_id.rsplit('/images_768/')
-        row, col = parse('r{:3d}_c{:3d}.jpg', img_filename)
-        i, j = self.ij[idx]
-        tile_id = os.path.join(dup_truth_path, 'images_256', f'r{row + i:03d}_c{col + j:03d}.jpg')
-        return cv2.imread(tile_id)
-
-    def get_data_pair(self, img_overlap, img_aug):
-
-        # diff img_id (img1_id != img2_id), random tile from overlap, where is_dup == 1 (from duplicate_truth.txt)
-        # img1_[i,j], img2_[k,l], 1, exact or fuzzy
-        # img1_[i,j], tile2_kl, 1, exact or fuzzy
-        # tile1_ij, img2_[k,l], 1, exact or fuzzy
-        # tile1_ij, tile2_kl, 1, exact or fuzzy
-
-        # same img_id (img1_id == img2_id), same tile (ij == kl)
-        # img1_[i,j], img1_[i,j], 1, exact
-        # img1_[i,j], tile1_ij, 1, fuzzy
-        # tile1_ij, img1_[i,j], 1, fuzzy
-        # tile1_ij, tile1_ij, 1, exact
-
-        # same img_id (img1_id == img2_id), diff tile (ij != kl)
-        # img1_[i,j], img1_[k,l], 0, similar but different
-        # img1_[i,j], tile1_kl, 0, similar but different
-        # tile1_ij, img1_[k,l], 0, similar but different
-        # tile1_ij, tile1_kl, 0, similar but different
-
-        # diff img_id (img1_id != img2_id), same tile (ij == kl)
-        # img1_[i,j], img2_[i,j], 0, very different
-        # img1_[i,j], tile2_ij, 0, very different
-        # tile1_ij, img2_[i,j], 0, very different
-        # tile1_ij, tile2_ij, 0, very different
-
-        # diff img_id (img1_id != img2_id), diff tile (ij != kl)
-        # img1_[i,j], img2_[k,l], 0, very different
-        # img1_[i,j], tile2_kl, 0, very different
-        # tile1_ij, img2_[k,l], 0, very different
-        # tile1_ij, tile2_kl, 0, very different
-
-        # use image_md5hash_grids.pkl for equal image id pairs (img1_id == img2_id)
-        # --------------------------------------------------------------------
-        # ij == kl? | tile1? | tile2? | shift? | is_dup?
-        # --------------------------------------------------------------------
-        #   yes     |  768   |  768   |   yes  |    yes agro color shift
-        #   yes     |  768   |  768   |    no  |    yes
-        #   yes     |  768   |  256   |    no  |    yes
-        #   yes     |  256   |  768   |    no  |    yes
-        #   yes     |  256   |  256   |   yes  |    yes agro color shift
-        #   yes     |  256   |  256   |    no  |    yes
-        #    no     |  768   |  768   |   yes  |     no
-        #    no     |  768   |  768   |    no  |     no
-        #    no     |  256   |  256   |   yes  |     no
-        #    no     |  256   |  256   |    no  |     no
-
-        # use duplicate_truth.txt for unequal image id pairs (img1_id != img2_id)
-        # NOTE: Be sure to use the overlap_map when comparing ij and kl
-        # --------------------------------------------------------------------
-        # ij == kl? | tile1? | tile2? | shift? | is_dup?
-        # --------------------------------------------------------------------
-        #   yes     |  768   |  768   |   yes  |    yes small color shift
-        #   yes     |  768   |  768   |    no  |    yes
-        #   yes     |  768   |  256   |    no  |    yes
-        #   yes     |  256   |  768   |    no  |    yes
-        #   yes     |  256   |  256   |   yes  |    yes
-        #   yes     |  256   |  256   |    no  |    yes
-        #    no     |  768   |  768   |   yes  |     no
-        #    no     |  768   |  768   |    no  |     no
-        #    no     |  256   |  256   |   yes  |     no
-        #    no     |  256   |  256   |    no  |     no
-
-        img1_id, img2_id, idx1, idx2, is_dup = img_overlap
-        idx3, chan, gain = img_aug
-        same_image = img1_id == img2_id
-
-        if same_image:  # img1_id == img2_id
-            if is_dup:  # idx1 == idx2
-                if idx3 == 0:
-                    tile1 = self.read_from_large(img1_id, idx1)
-                    tile2 = self.color_shift(tile1, chan, gain)
-                elif idx3 == 1:
-                    tile1 = self.read_from_large(img1_id, idx1)
-                    tile2 = self.read_from_small(img2_id, idx2)
-                elif idx3 == 2:
-                    tile1 = self.read_from_small(img1_id, idx1)
-                    tile2 = self.read_from_large(img2_id, idx2)
-                elif idx3 == 3:
-                    tile1 = self.read_from_small(img1_id, idx1)
-                    tile2 = self.color_shift(tile1, chan, gain)
-                else:
-                    raise ValueError
-            else:  # idx1 != idx2
-                # idx3 = 3
-                if idx3 == 0:  # fast
-                    img = cv2.imread(img1_id)
-                    tile1 = self.get_tile(img, idx1)
-                    tile2 = self.get_tile(img, idx2)
-                elif idx3 == 1:  # slowest
-                    tile1 = self.read_from_large(img1_id, idx1)
-                    tile2 = self.read_from_small(img2_id, idx2)
-                elif idx3 == 2:  # slowest
-                    tile1 = self.read_from_small(img1_id, idx1)
-                    tile2 = self.read_from_large(img2_id, idx2)
-                elif idx3 == 3:  # fastest
-                    tile1 = self.read_from_small(img1_id, idx1)
-                    tile2 = self.read_from_small(img2_id, idx2)
-                else:
-                    raise ValueError
-        else:  # img1_id != img2_id
-            if is_dup:
-                if idx3 == 0:  # slowest
-                    tile1 = self.read_from_large(img1_id, idx1)
-                    tile2 = self.read_from_large(img2_id, idx2)
-                elif idx3 == 1:  # slow
-                    tile1 = self.read_from_large(img1_id, idx1)
-                    tile2 = self.read_from_small(img2_id, idx2)
-                elif idx3 == 2:  # slow
-                    tile1 = self.read_from_small(img1_id, idx1)
-                    tile2 = self.read_from_large(img2_id, idx2)
-                elif idx3 == 3:  # fast
-                    # These end up being the same tile.
-                    tile1 = self.read_from_small(img1_id, idx1)
-                    tile2 = self.color_shift(tile1, chan, gain)
-                else:
-                    raise ValueError
-            else:
-                if idx3 == 0:  # slowest
-                    tile1 = self.read_from_large(img1_id, idx1)
-                    tile2 = self.read_from_large(img2_id, idx2)
-                elif idx3 == 1:  # slow
-                    tile1 = self.read_from_large(img1_id, idx1)
-                    tile2 = self.read_from_small(img2_id, idx2)
-                elif idx3 == 2:  # slow
-                    tile1 = self.read_from_small(img1_id, idx1)
-                    tile2 = self.read_from_large(img2_id, idx2)
-                elif idx3 == 3:  # fast
-                    tile1 = self.read_from_small(img1_id, idx1)
-                    tile2 = self.read_from_small(img2_id, idx2)
-                else:
-                    raise ValueError
-
-        # print(f'same_image, is_dup, idx3: {same_image*1}, {is_dup}, {idx3}')
-        # print(f'{img1_id} {idx1} -> ({self.ij[idx1][0]},{self.ij[idx1][1]})')
-        # print(f'{img2_id} {idx2} -> ({self.ij[idx2][0]},{self.ij[idx2][1]})')
-
-        tile1 = cv2.cvtColor(tile1, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
-        tile2 = cv2.cvtColor(tile2, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
-
-        X = np.dstack([tile1, tile2]) if np.random.random() < 0.5 else np.dstack([tile2, tile1])
-        X = self.image_transform(X)
-        y = np.array([is_dup], dtype=np.float32)
-        return X, y
 
 
 class RandomHorizontalFlip:
