@@ -7,19 +7,28 @@ from dotenv import find_dotenv, load_dotenv
 
 from sdcdup.features import create_image_overlap_properties
 
+allowed_n_matching_tiles = (9, 6, 4, 3, 2, 1)
+allowed_score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
+
 
 @click.command()
-@click.argument('input_filepath', type=click.Path(exists=True))
-@click.argument('output_filepath', type=click.Path())
-def main(input_filepath, output_filepath):
+@click.argument('n_matching_tiles_str', type=str, nargs=1)
+@click.argument('score_types', type=str, nargs=-1)
+def main(n_matching_tiles_str, score_types):
     """ Runs data processing scripts to turn raw data from (../raw) into
-        cleaned data ready to be analyzed (saved in ../processed).
+        cleaned data ready to be analyzed (saved in ../interim).
     """
     logger = logging.getLogger(__name__)
     logger.info('making final data set from raw data')
 
-    n_matching_tiles_list = [9, 6, 4, 3, 2, 1]
-    score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
+    n_matching_tiles_list = set(map(int, list(n_matching_tiles_str)))
+    for n_matching_tiles in n_matching_tiles_list:
+        assert n_matching_tiles in allowed_n_matching_tiles
+
+    score_types = set([s.lower() for s in score_types])
+    for score_type in score_types:
+        assert score_type in allowed_score_types
+
     create_image_overlap_properties(n_matching_tiles_list, score_types)
 
 

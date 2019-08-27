@@ -1,4 +1,4 @@
-.PHONY: clean data lint requirements
+.PHONY: clean data features lint requirements
 
 #################################################################################
 # GLOBALS                                                                       #
@@ -36,6 +36,10 @@ requirements: test_environment
 ## Make Dataset
 data: requirements
 	$(PYTHON_INTERPRETER) sdcdup/data/make_dataset.py data/raw data/processed
+
+## Make Intermediate Features
+features:
+	$(PYTHON_INTERPRETER) sdcdup/features/build_features.py 964321 bmh cmh enp pix px0 shp
 
 ## Delete all compiled Python files
 clean:
