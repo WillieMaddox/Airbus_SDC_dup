@@ -5,7 +5,7 @@ import logging
 # from pathlib import Path
 from dotenv import find_dotenv, load_dotenv
 
-from sdcdup.data import create_256_tiles
+from sdcdup.features import create_image_overlap_properties
 
 
 @click.command()
@@ -18,11 +18,9 @@ def main(input_filepath, output_filepath):
     logger = logging.getLogger(__name__)
     logger.info('making final data set from raw data')
 
-    # train_image_dir = os.path.join(project_root, os.getenv('RAW_DATA_DIR'), 'train_768')
-    # train_tile_dir = os.path.join(project_root, os.getenv('PROCESSED_DATA_DIR'), 'train_256')
-    train_image_dir = os.path.join(input_filepath, 'train_768')
-    train_tile_dir = os.path.join(output_filepath, 'train_256')
-    create_256_tiles(train_image_dir, train_tile_dir)
+    n_matching_tiles_list = [9, 6, 4, 3, 2, 1]
+    score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
+    create_image_overlap_properties(n_matching_tiles_list, score_types)
 
 
 if __name__ == '__main__':

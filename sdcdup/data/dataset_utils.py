@@ -12,10 +12,29 @@ from tqdm import tqdm
 from sdcdup.utils import get_hamming_distance, fuzzy_join, generate_tag_pair_lookup, load_duplicate_truth, \
     interim_data_dir, far_away_corners, get_img, idx_chan_map, to_hls, channel_shift, to_bgr, train_image_dir, \
     train_tile_dir
+from sdcdup.utils import get_tile
+
 from sdcdup.features import SDCImageContainer
 
 
-def create_dataset_from_tiles(sdcic):
+def create_256_tiles(train_image_dir, train_tile_dir):
+    n_tiles = 9
+    os.makedirs(train_tile_dir, exist_ok=True)
+    img_ids = os.listdir(train_image_dir)
+    for img_id in tqdm(img_ids):
+        img = None
+        filebase, fileext = img_id.split('.')
+        for idx in range(n_tiles):
+            outfile = os.path.join(train_tile_dir, f'{filebase}_{idx}.{fileext}')
+            if os.path.exists(outfile):
+                continue
+            if img is None:
+                img = cv2.imread(os.path.join(train_image_dir, img_id))
+            tile = get_tile(img, idx)
+            cv2.imwrite(outfile, tile)
+
+
+def create_dataset_from_tiles():
     """
     is_dup issolid  action
      i==j   i   j    skip?
@@ -33,6 +52,9 @@ def create_dataset_from_tiles(sdcic):
     :param sdcic:
     :return:
     """
+    sdcic = SDCImageContainer()
+    sdcic.preprocess_image_properties()
+
     img_overlap_pairs_dup_keys = []
     img_overlap_pairs_non_dup_all = []
 
@@ -102,7 +124,10 @@ def create_dataset_from_tiles(sdcic):
     return img_overlap_pairs
 
 
-def create_dataset_from_tiles_and_truth(sdcic):
+def create_dataset_from_tiles_and_truth():
+
+    sdcic = SDCImageContainer()
+    sdcic.preprocess_image_properties()
 
     tpl = generate_tag_pair_lookup()
     dup_truth = load_duplicate_truth()

@@ -6,6 +6,8 @@ from collections import namedtuple
 
 from cachetools import LRUCache
 from cachetools import cachedmethod
+from skimage.feature import greycomatrix, greycoprops
+from skimage.measure import shannon_entropy
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
@@ -21,9 +23,6 @@ from sdcdup.utils import overlap_tag_pairs
 from sdcdup.utils import overlap_tag_maps
 from sdcdup.utils import relative_diff
 from sdcdup.utils import fuzzy_diff
-from sdcdup.utils import gen_entropy
-from sdcdup.utils import gen_greycop_hash
-from sdcdup.utils import get_issolid_flags
 
 project_root = get_project_root()
 raw_data_dir = os.path.join(project_root, os.getenv('RAW_DATA_DIR'))
@@ -49,6 +48,102 @@ def get_rles(ship_file):
     df['cts'] = df.apply(lambda c_row: c_row['cts'] if isinstance(c_row['EncodedPixels'], str) else 0, 1)
     df = df[df['cts'] >= 1]
     return {k: list(v) for k, v in df.groupby('ImageId')['EncodedPixels']}
+
+
+def get_issolid_flags(tile):
+    issolid_flags = np.array([-1, -1, -1])
+    for chan in range(3):
+        pix = np.unique(tile[:, :, chan].flatten())
+        if len(pix) == 1:
+            issolid_flags[chan] = pix[0]
+    return issolid_flags
+
+
+def gen_entropy(tile):
+    entropy_shannon = np.zeros(3)
+    for chan in range(3):
+        entropy_shannon[chan] = shannon_entropy(tile[:, :, chan])
+
+    return entropy_shannon
+
+
+def gen_greycop_hash(tile, n_metrics):
+    # TODO: Add second order entropy using 3x3 kernel.
+    #  https://www.harrisgeospatial.com/docs/backgroundtexturemetrics.html
+
+    # def get_sub_tile(tile, i, j, sz=256):
+    #     return tile[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
+
+    assert tile.shape == (256, 256, 3)
+    # if tile_power is None:
+    #     tile_power = np.log2(256).astype(int)
+
+    distances = [1]
+    angles = np.array([0, 2]) * np.pi / 4
+    properties = ['contrast', 'homogeneity', 'energy', 'correlation']
+    assert n_metrics == len(properties) + 1
+    # kernel = diamond(1)
+    glcm_feats = np.zeros((len(properties) + 1, 3), dtype=np.float)
+    # glcm_entropy = np.zeros((3, ))
+    for chan in range(3):
+        # mode0_img = modal(tile[:, :, chan], kernel)
+        # entr0_img = entropy(tile[:, :, chan], kernel)
+
+        glcm = greycomatrix(tile[:, :, chan], distances=distances, angles=angles, symmetric=True, normed=True)
+        # glcm = np.squeeze(glcm)
+        feats = np.array([greycoprops(glcm, prop) for prop in properties])
+        glcm_feats[:-1, ..., chan] = np.squeeze(np.mean(feats, axis=-1))
+        # feats = np.hstack(feats)
+        # feats.append(glcm_entropy)
+        glcm_entropy = -np.sum(glcm * np.log(glcm + (glcm == 0)), axis=(0, 1))
+        glcm_feats[-1, ..., chan] = np.squeeze(np.mean(glcm_entropy, axis=-1))
+
+    # pyramid_pixels = np.zeros((tile_power, 3), dtype=np.float)
+    # pyramid_weights1 = np.zeros((tile_power, 3), dtype=np.float)
+    # pyramid_weights2 = np.zeros((tile_power, 3), dtype=np.float)
+    # for ii in range(tile_power):
+    #
+    #     len_sub_tiles = 2 ** ii
+    #     sub_tile_dim = 256 // len_sub_tiles
+    #     n_sub_tiles = len_sub_tiles * len_sub_tiles
+    #     sub_tile_size = sub_tile_dim * sub_tile_dim
+    #     pixel1 = np.zeros((n_sub_tiles, 3), dtype=np.uint8)
+    #     weight1 = np.zeros((n_sub_tiles, 3), dtype=np.int64)
+    #     entropy_shannon = np.zeros((n_sub_tiles, 3), dtype=np.float)
+    #     entropy_shannon1 = np.zeros((n_sub_tiles, 3), dtype=np.float)
+    #     entropy_shannon2 = np.zeros((n_sub_tiles, 3), dtype=np.float)
+    #     entropy_shannon3 = np.zeros((n_sub_tiles, 3), dtype=np.float)
+    #
+    #     ij_pairs = generate_ij_pairs(len_sub_tiles)
+    #     for idx in range(n_sub_tiles):
+    #
+    #         sub_tile = get_sub_tile(tile, *ij_pairs[idx], sub_tile_dim)
+    #         selem = square(3)
+    #         for chan in range(3):
+    #
+    #             pix, cts = np.unique(sub_tile[:, :, chan].flatten(), return_counts=True)
+    #             max_idx = np.argmax(cts)
+    #             pixel1[idx, chan] = pix[max_idx]
+    #             weight1[idx, chan] = cts[max_idx]
+    #             probs = cts / np.sum(cts)
+    #             entropy_shannon3[idx, chan] = -np.sum(probs * np.log2(probs))
+    #             mode_img = modal(sub_tile[:, :, chan], selem)
+    #             entropy_shannon[idx, chan] = shannon_entropy(mode_img)
+    #             entr_img = entropy(sub_tile[:, :, chan], selem)
+    #             entropy_shannon1[idx, chan] = shannon_entropy(entr_img)
+    #             entropy_shannon2[idx, chan] = shannon_entropy(sub_tile[:, :, chan])
+    #
+    #     pyramid_pixels[ii] = np.mean(pixel1, axis=0) / 255.
+    #     pyramid_weights[ii] = np.mean(weight1, axis=0) / sub_tile_size
+    #     pyramid_weights1[ii] = np.mean(entropy_shannon1, axis=0)
+    #     pyramid_weights2[ii] = np.mean(entropy_shannon2, axis=0)
+    #
+    # pixel_mean = np.mean(pyramid_pixels, axis=0)
+    # pixel_stdev = np.std(pyramid_pixels, axis=0)
+    # weight_mean = np.mean(pyramid_weights, axis=1)
+    # pyramid_hash = np.hstack([pixel_mean, pixel_stdev, weight_mean])
+
+    return np.mean(glcm_feats, axis=1)
 
 
 class SDCImageContainer:
@@ -101,6 +196,16 @@ class SDCImageContainer:
         self.matches_metric = 'bmh'
         self.matches_threshold = 0.90234375  # 1 - ((5 + 20) / 256)
         self.cache = LRUCache(maxsize=cache_size)
+        self.score_funcs = {
+            'bmh': self.get_bmh_scores,
+            'cmh': self.get_cmh_scores,
+            'gcm': self.get_gcm_scores,
+            'pyr': self.get_pyr_scores,
+            'enp': self.get_enp_scores,
+            'pix': self.gen_pix_scores,
+            'px0': self.gen_px0_scores,
+            'shp': self.gen_shp_scores,
+        }
 
     def preprocess_image_properties(self):
 
@@ -351,7 +456,7 @@ class SDCImageContainer:
             scores.append(score)
         return scores
 
-    def get_greycop_scores(self, img1_id, img2_id, img1_overlap_tag):
+    def get_gcm_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
@@ -362,7 +467,7 @@ class SDCImageContainer:
             scores.append(score)
         return np.array(scores)
 
-    def get_pyramid_scores(self, img1_id, img2_id, img1_overlap_tag):
+    def get_pyr_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
@@ -374,7 +479,7 @@ class SDCImageContainer:
             scores.append(score)
         return np.array(scores)
 
-    def get_entropy_scores(self, img1_id, img2_id, img1_overlap_tag):
+    def get_enp_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
@@ -386,7 +491,7 @@ class SDCImageContainer:
             scores.append(score)
         return np.array(scores)
 
-    def gen_pixel_scores(self, img1_id, img2_id, img1_overlap_tag):
+    def gen_pix_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         img1 = self.get_img(img1_id)
@@ -412,7 +517,7 @@ class SDCImageContainer:
             scores.append(score)
         return np.array(scores)
 
-    def gen_shipcnt_scores(self, img1_id, img2_id, img1_overlap_tag):
+    def gen_shp_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
@@ -540,214 +645,108 @@ class SDCImage:
         self.overlap_image_maps[tag][other_sdc.img_id] = {'tile_scores': tile_scores}
 
 
-# TODO: add ability to specify which score types we want retrieved.
-#  But first need to figure out what to do about gcm since it holds 5 different score types.
 def load_image_overlap_properties(n_matching_tiles_list, score_types=None):
+
+    sdcic = SDCImageContainer()
+    sdcic.preprocess_image_properties()
+    sdcic.preprocess_label_properties()
+
+    if score_types is None:
+        score_types = ['bmh', 'cmh', 'enp', 'pix', 'px0', 'shp']
+
+    Overlap_Scores = namedtuple('overlap_scores', score_types)
 
     overlap_image_maps = {}
     for n_matching_tiles in n_matching_tiles_list:
-        overlap_bmh_tile_scores_file = os.path.join(interim_data_dir, f'overlap_bmh_tile_scores_{n_matching_tiles}.pkl')
-        overlap_cmh_tile_scores_file = os.path.join(interim_data_dir, f'overlap_cmh_tile_scores_{n_matching_tiles}.pkl')
-        overlap_gcm_tile_scores_file = os.path.join(interim_data_dir, f'overlap_gcm_tile_scores_{n_matching_tiles}.pkl')
-        overlap_enp_tile_scores_file = os.path.join(interim_data_dir, f'overlap_enp_tile_scores_{n_matching_tiles}.pkl')
-        overlap_pix_tile_scores_file = os.path.join(interim_data_dir, f'overlap_pix_tile_scores_{n_matching_tiles}.pkl')
-        overlap_px0_tile_scores_file = os.path.join(interim_data_dir, f'overlap_px0_tile_scores_{n_matching_tiles}.pkl')
-        overlap_shp_tile_scores_file = os.path.join(interim_data_dir, f'overlap_shp_tile_scores_{n_matching_tiles}.pkl')
 
-        df = pd.read_pickle(overlap_bmh_tile_scores_file)
-        overlap_bmh_tile_scores = {}
-        for img1_id, img2_id, img1_overlap_tag, *scores in df.to_dict('split')['data']:
-            if (img1_id, img2_id) not in overlap_bmh_tile_scores:
-                overlap_bmh_tile_scores[(img1_id, img2_id)] = {}
-            overlap_bmh_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(scores)
+        overlap_matches = get_overlap_matches(sdcic, n_matching_tiles)
+        overlap_scores = {}
+        for score_type in score_types:
+            overlap_tile_scores_filename = f'overlap_{score_type}_tile_scores_{n_matching_tiles}.pkl'
+            df = pd.read_pickle(os.path.join(interim_data_dir, overlap_tile_scores_filename))
+            overlap_tile_scores = {}
+            for img1_id, img2_id, img1_overlap_tag, *scores in df.to_dict('split')['data']:
+                if (img1_id, img2_id) not in overlap_tile_scores:
+                    overlap_tile_scores[(img1_id, img2_id)] = {}
+                overlap_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(scores)
+            overlap_scores[score_type] = overlap_tile_scores
 
-        df = pd.read_pickle(overlap_cmh_tile_scores_file)
-        overlap_cmh_tile_scores = {}
-        for img1_id, img2_id, img1_overlap_tag, *scores in df.to_dict('split')['data']:
-            if (img1_id, img2_id) not in overlap_cmh_tile_scores:
-                overlap_cmh_tile_scores[(img1_id, img2_id)] = {}
-            overlap_cmh_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(scores)
+        for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
 
-        df = pd.read_pickle(overlap_gcm_tile_scores_file)
-        overlap_gcm_tile_scores = {}
-        for img1_id, img2_id, img1_overlap_tag, *scores in df.to_dict('split')['data']:
-            if (img1_id, img2_id) not in overlap_gcm_tile_scores:
-                overlap_gcm_tile_scores[(img1_id, img2_id)] = {}
-            overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(scores)
+            scores_list = []
+            for score_type in score_types:
+                scores_list.append(overlap_scores[score_type][(img1_id, img2_id)][img1_overlap_tag])
 
-        df = pd.read_pickle(overlap_enp_tile_scores_file)
-        overlap_enp_tile_scores = {}
-        for img1_id, img2_id, img1_overlap_tag, *scores in df.to_dict('split')['data']:
-            if (img1_id, img2_id) not in overlap_enp_tile_scores:
-                overlap_enp_tile_scores[(img1_id, img2_id)] = {}
-            overlap_enp_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(scores)
-
-        df = pd.read_pickle(overlap_pix_tile_scores_file)
-        overlap_pix_tile_scores = {}
-        for img1_id, img2_id, img1_overlap_tag, *scores in df.to_dict('split')['data']:
-            if (img1_id, img2_id) not in overlap_pix_tile_scores:
-                overlap_pix_tile_scores[(img1_id, img2_id)] = {}
-            overlap_pix_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(scores)
-
-        df = pd.read_pickle(overlap_px0_tile_scores_file)
-        overlap_px0_tile_scores = {}
-        for img1_id, img2_id, img1_overlap_tag, *scores in df.to_dict('split')['data']:
-            if (img1_id, img2_id) not in overlap_px0_tile_scores:
-                overlap_px0_tile_scores[(img1_id, img2_id)] = {}
-            overlap_px0_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(scores)
-
-        df = pd.read_pickle(overlap_shp_tile_scores_file)
-        overlap_shp_tile_scores = {}
-        for img1_id, img2_id, img1_overlap_tag, *scores in df.to_dict('split')['data']:
-            if (img1_id, img2_id) not in overlap_shp_tile_scores:
-                overlap_shp_tile_scores[(img1_id, img2_id)] = {}
-            overlap_shp_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(scores)
-
-        Overlap_Scores = namedtuple(
-            'overlap_scores',
-            ['bmh', 'cmh', 'con', 'hom', 'eng', 'cor', 'epy', 'enp', 'pix', 'px0', 'shp']
-        )
-        for (img1_id, img2_id), img1_overlap_tags in tqdm(sorted(overlap_bmh_tile_scores.items())):
-            for img1_overlap_tag in img1_overlap_tags:
-
-                bmh_scores = overlap_bmh_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
-                cmh_scores = overlap_cmh_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
-                con_scores = overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag][:, 0]
-                hom_scores = overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag][:, 1]
-                eng_scores = overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag][:, 2]
-                cor_scores = overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag][:, 3]
-                epy_scores = overlap_gcm_tile_scores[(img1_id, img2_id)][img1_overlap_tag][:, 4]
-                enp_scores = overlap_enp_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
-                pix_scores = overlap_pix_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
-                px0_scores = overlap_px0_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
-                shp_scores = overlap_shp_tile_scores[(img1_id, img2_id)][img1_overlap_tag]
-
-                overlap_scores = Overlap_Scores(
-                    bmh_scores, cmh_scores, con_scores, hom_scores, eng_scores, cor_scores,
-                    epy_scores, enp_scores, pix_scores, px0_scores, shp_scores)
-
-                if (img1_id, img2_id) not in overlap_image_maps:
-                    overlap_image_maps[(img1_id, img2_id)] = {}
-                overlap_image_maps[(img1_id, img2_id)][img1_overlap_tag] = overlap_scores
+            if (img1_id, img2_id) not in overlap_image_maps:
+                overlap_image_maps[(img1_id, img2_id)] = {}
+            overlap_image_maps[(img1_id, img2_id)][img1_overlap_tag] = Overlap_Scores(*scores_list)
 
     return overlap_image_maps
 
 
-def create_image_overlap_properties(n_matching_tiles_list):
+def get_overlap_matches(sdcic, n_matching_tiles):
+
+    overlap_matches_file = sdcic.create_overlap_matches_filename(n_matching_tiles)
+
+    if os.path.exists(overlap_matches_file):
+        df = pd.read_csv(overlap_matches_file, dtype=str)
+        overlap_matches = df.to_dict('split')['data']
+
+    else:
+        level_overlap_tags = {tag for tag, tiles in overlap_tag_maps.items() if len(tiles) in (n_matching_tiles,)}
+        img_ids = os.listdir(sdcic.train_image_dir)
+        # TODO: Use filter for all overlaps here? or just n_matching_tiles?
+        # img_ids = filter_duplicates(img_ids)
+
+        hash_dict = defaultdict(set)
+        for img_id in tqdm(img_ids):
+            for h in sdcic.tile_bm0hash_grids[img_id]:
+                hash_dict[tuple(h)].add(img_id)
+
+        sorted_hash_dict = {}
+        for key, dups in sorted(hash_dict.items(), key=lambda x: len(x[1]), reverse=True):
+            if len(dups) > 1:
+                sorted_hash_dict[key] = dups
+
+        hash_ids = list(sorted_hash_dict)
+        for hash_id in tqdm(hash_ids):
+            sdcic.find_valid_pairings_by_hash(hash_id, sorted_hash_dict, level_overlap_tags)
+        overlap_matches = sdcic.matches
+
+        df = pd.DataFrame(overlap_matches)
+        df.to_csv(overlap_matches_file, index=False)
+
+    return overlap_matches
+
+
+def create_image_overlap_properties(n_matching_tiles_list, score_types):
+
+    # bmh: blockMeanHash scores: Hamming distance between 2 blockMeanHash scores
+    # cmh: colorMomentHash scores: L2 norm between 2 colorMomentHash scores
+    # FIXME gcm: skimage greycomatrix scores: Relative difference between 2 greycop scores.
+    # enp: Entropy scores: Exponential of the negative L2 norm between 2 entropy scores.
+    # pix: Pixel scores: Fuzzy difference between 2 images pixelwise. Requires reading images so can be slow.
+    # px0: Pixel scores: Hamming distance between 2 images pixelwise. Requires reading images so can be slow.
+    # shp: Number of pixels that belong to ships:
 
     sdcic = SDCImageContainer()
     sdcic.preprocess_image_properties()
     sdcic.preprocess_label_properties()
 
     for n_matching_tiles in n_matching_tiles_list:
+        overlap_matches = get_overlap_matches(sdcic, n_matching_tiles)
 
-        overlap_matches_file = sdcic.create_overlap_matches_filename(n_matching_tiles)
-        overlap_bmh_tile_scores_file = os.path.join(interim_data_dir, f'overlap_bmh_tile_scores_{n_matching_tiles}.pkl')
-        overlap_cmh_tile_scores_file = os.path.join(interim_data_dir, f'overlap_cmh_tile_scores_{n_matching_tiles}.pkl')
-        overlap_gcm_tile_scores_file = os.path.join(interim_data_dir, f'overlap_gcm_tile_scores_{n_matching_tiles}.pkl')
-        overlap_enp_tile_scores_file = os.path.join(interim_data_dir, f'overlap_enp_tile_scores_{n_matching_tiles}.pkl')
-        overlap_pix_tile_scores_file = os.path.join(interim_data_dir, f'overlap_pix_tile_scores_{n_matching_tiles}.pkl')
-        overlap_px0_tile_scores_file = os.path.join(interim_data_dir, f'overlap_px0_tile_scores_{n_matching_tiles}.pkl')
-        overlap_shp_tile_scores_file = os.path.join(interim_data_dir, f'overlap_shp_tile_scores_{n_matching_tiles}.pkl')
+        for score_type in score_types:
+            overlap_tile_scores_filename = f'overlap_{score_type}_tile_scores_{n_matching_tiles}.pkl'
+            overlap_tile_scores_file = os.path.join(interim_data_dir, overlap_tile_scores_filename)
+            if not os.path.exists(overlap_tile_scores_file):
+                overlap_tile_scores_list = []
 
-        if not os.path.exists(overlap_matches_file):
-
-            level_overlap_tags = {tag for tag, tiles in overlap_tag_maps.items() if len(tiles) in (n_matching_tiles,)}
-            img_ids = os.listdir(sdcic.train_image_dir)
-            # TODO: Use filter for all overlaps here? or just n_matching_tiles?
-            # img_ids = filter_duplicates(img_ids)
-
-            hash_dict = defaultdict(set)
-            for img_id in tqdm(img_ids):
-                for h in sdcic.tile_bm0hash_grids[img_id]:
-                    hash_dict[tuple(h)].add(img_id)
-
-            sorted_hash_dict = {}
-            for key, dups in sorted(hash_dict.items(), key=lambda x: len(x[1]), reverse=True):
-                if len(dups) > 1:
-                    sorted_hash_dict[key] = dups
-
-            hash_ids = list(sorted_hash_dict)
-            for hash_id in tqdm(hash_ids):
-                sdcic.find_valid_pairings_by_hash(hash_id, sorted_hash_dict, level_overlap_tags)
-
-            df = pd.DataFrame(sdcic.matches)
-            df.to_csv(overlap_matches_file, index=False)
-
-        df = pd.read_csv(overlap_matches_file)
-        overlap_matches = []
-        for record in tqdm(df.to_dict('split')['data']):
-            img1_id, img2_id, img1_overlap_tag = record
-            overlap_matches.append((img1_id, img2_id, img1_overlap_tag))
-
-        # blockMeanHash scores:
-        # Hamming distance between 2 blockMeanHash scores
-        if not os.path.exists(overlap_bmh_tile_scores_file):
-            overlap_tile_scores_list = []
-            for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
-                scores = sdcic.get_bmh_scores(img1_id, img2_id, img1_overlap_tag)
-                overlap_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
-            df = pd.DataFrame(overlap_tile_scores_list)
-            df.to_pickle(overlap_bmh_tile_scores_file)
-
-        # colorMomentHash scores:
-        # L2 norm between 2 colorMomentHash scores
-        if not os.path.exists(overlap_cmh_tile_scores_file):
-            overlap_tile_scores_list = []
-            for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
-                scores = sdcic.get_cmh_scores(img1_id, img2_id, img1_overlap_tag)
-                overlap_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
-            df = pd.DataFrame(overlap_tile_scores_list)
-            df.to_pickle(overlap_cmh_tile_scores_file)
-
-        # skimage greycomatrix property scores:
-        # Exponential of the negative L2 norm between 2 greycop scores.
-        if not os.path.exists(overlap_gcm_tile_scores_file):
-            overlap_tile_scores_list = []
-            for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
-                scores = sdcic.get_greycop_scores(img1_id, img2_id, img1_overlap_tag)
-                overlap_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
-            df = pd.DataFrame(overlap_tile_scores_list)
-            df.to_pickle(overlap_gcm_tile_scores_file)
-
-        # Entropy scores:
-        # Exponential of the negative L2 norm between 2 entropy scores.
-        if not os.path.exists(overlap_enp_tile_scores_file):
-            overlap_tile_scores_list = []
-            for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
-                scores = sdcic.get_entropy_scores(img1_id, img2_id, img1_overlap_tag)
-                overlap_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
-            df = pd.DataFrame(overlap_tile_scores_list)
-            df.to_pickle(overlap_enp_tile_scores_file)
-
-        # Pixel scores:
-        # Fuzzy difference distance between 2 images pixelwise. Requires reading images so can be slow.
-        if not os.path.exists(overlap_pix_tile_scores_file):
-            overlap_tile_scores_list = []
-            for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
-                scores = sdcic.gen_pixel_scores(img1_id, img2_id, img1_overlap_tag)
-                overlap_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
-            df = pd.DataFrame(overlap_tile_scores_list)
-            df.to_pickle(overlap_pix_tile_scores_file)
-
-        # Pixel scores:
-        # Hamming distance between 2 images pixelwise. Requires reading images so can be slow.
-        if not os.path.exists(overlap_px0_tile_scores_file):
-            overlap_tile_scores_list = []
-            for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
-                scores = sdcic.gen_px0_scores(img1_id, img2_id, img1_overlap_tag)
-                overlap_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
-            df = pd.DataFrame(overlap_tile_scores_list)
-            df.to_pickle(overlap_px0_tile_scores_file)
-
-        # Number of pixels that belong to ships:
-        if not os.path.exists(overlap_shp_tile_scores_file):
-            overlap_tile_scores_list = []
-            for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
-                scores = sdcic.gen_shipcnt_scores(img1_id, img2_id, img1_overlap_tag)
-                overlap_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
-            df = pd.DataFrame(overlap_tile_scores_list)
-            df.to_pickle(overlap_shp_tile_scores_file)
+                for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
+                    scores = sdcic.score_funcs[score_type](img1_id, img2_id, img1_overlap_tag)
+                    overlap_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
+                df = pd.DataFrame(overlap_tile_scores_list)
+                df.to_pickle(overlap_tile_scores_file)
 
 
 if __name__ == '__main__':
@@ -760,6 +759,8 @@ if __name__ == '__main__':
     # n_matching_tiles = 1
 
     n_matching_tiles_list = [9, 6, 4, 3, 2, 1]
-    create_image_overlap_properties(n_matching_tiles_list)
+    score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
+    create_image_overlap_properties(n_matching_tiles_list, score_types)
+    # overlap_image_maps = load_image_overlap_properties(n_matching_tiles_list)
 
     print('done')

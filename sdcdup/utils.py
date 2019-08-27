@@ -7,9 +7,6 @@ import numpy as np
 import networkx as nx
 import cv2
 
-from skimage.measure import shannon_entropy
-from skimage.feature import greycomatrix, greycoprops
-
 import torch
 from torch._six import int_classes as _int_classes
 from torch.utils import data
@@ -410,102 +407,6 @@ def fuzzy_compare(tile1, tile2):
     ab = fuzzy_join(tile1, tile2)
     n = 255 * np.prod(ab.shape)
     return np.sum(255 - ab) / n
-
-
-def get_issolid_flags(tile):
-    issolid_flags = np.array([-1, -1, -1])
-    for chan in range(3):
-        pix = np.unique(tile[:, :, chan].flatten())
-        if len(pix) == 1:
-            issolid_flags[chan] = pix[0]
-    return issolid_flags
-
-
-def gen_entropy(tile):
-    entropy_shannon = np.zeros(3)
-    for chan in range(3):
-        entropy_shannon[chan] = shannon_entropy(tile[:, :, chan])
-
-    return entropy_shannon
-
-
-def gen_greycop_hash(tile, n_metrics):
-    # TODO: Add second order entropy using 3x3 kernel.
-    #  https://www.harrisgeospatial.com/docs/backgroundtexturemetrics.html
-
-    # def get_sub_tile(tile, i, j, sz=256):
-    #     return tile[i * sz:(i + 1) * sz, j * sz:(j + 1) * sz, :]
-
-    assert tile.shape == (256, 256, 3)
-    # if tile_power is None:
-    #     tile_power = np.log2(256).astype(int)
-
-    distances = [1]
-    angles = np.array([0, 2]) * np.pi / 4
-    properties = ['contrast', 'homogeneity', 'energy', 'correlation']
-    assert n_metrics == len(properties) + 1
-    # kernel = diamond(1)
-    glcm_feats = np.zeros((len(properties) + 1, 3), dtype=np.float)
-    # glcm_entropy = np.zeros((3, ))
-    for chan in range(3):
-        # mode0_img = modal(tile[:, :, chan], kernel)
-        # entr0_img = entropy(tile[:, :, chan], kernel)
-
-        glcm = greycomatrix(tile[:, :, chan], distances=distances, angles=angles, symmetric=True, normed=True)
-        # glcm = np.squeeze(glcm)
-        feats = np.array([greycoprops(glcm, prop) for prop in properties])
-        glcm_feats[:-1, ..., chan] = np.squeeze(np.mean(feats, axis=-1))
-        # feats = np.hstack(feats)
-        # feats.append(glcm_entropy)
-        glcm_entropy = -np.sum(glcm * np.log(glcm + (glcm == 0)), axis=(0, 1))
-        glcm_feats[-1, ..., chan] = np.squeeze(np.mean(glcm_entropy, axis=-1))
-
-    # pyramid_pixels = np.zeros((tile_power, 3), dtype=np.float)
-    # pyramid_weights1 = np.zeros((tile_power, 3), dtype=np.float)
-    # pyramid_weights2 = np.zeros((tile_power, 3), dtype=np.float)
-    # for ii in range(tile_power):
-    #
-    #     len_sub_tiles = 2 ** ii
-    #     sub_tile_dim = 256 // len_sub_tiles
-    #     n_sub_tiles = len_sub_tiles * len_sub_tiles
-    #     sub_tile_size = sub_tile_dim * sub_tile_dim
-    #     pixel1 = np.zeros((n_sub_tiles, 3), dtype=np.uint8)
-    #     weight1 = np.zeros((n_sub_tiles, 3), dtype=np.int64)
-    #     entropy_shannon = np.zeros((n_sub_tiles, 3), dtype=np.float)
-    #     entropy_shannon1 = np.zeros((n_sub_tiles, 3), dtype=np.float)
-    #     entropy_shannon2 = np.zeros((n_sub_tiles, 3), dtype=np.float)
-    #     entropy_shannon3 = np.zeros((n_sub_tiles, 3), dtype=np.float)
-    #
-    #     ij_pairs = generate_ij_pairs(len_sub_tiles)
-    #     for idx in range(n_sub_tiles):
-    #
-    #         sub_tile = get_sub_tile(tile, *ij_pairs[idx], sub_tile_dim)
-    #         selem = square(3)
-    #         for chan in range(3):
-    #
-    #             pix, cts = np.unique(sub_tile[:, :, chan].flatten(), return_counts=True)
-    #             max_idx = np.argmax(cts)
-    #             pixel1[idx, chan] = pix[max_idx]
-    #             weight1[idx, chan] = cts[max_idx]
-    #             probs = cts / np.sum(cts)
-    #             entropy_shannon3[idx, chan] = -np.sum(probs * np.log2(probs))
-    #             mode_img = modal(sub_tile[:, :, chan], selem)
-    #             entropy_shannon[idx, chan] = shannon_entropy(mode_img)
-    #             entr_img = entropy(sub_tile[:, :, chan], selem)
-    #             entropy_shannon1[idx, chan] = shannon_entropy(entr_img)
-    #             entropy_shannon2[idx, chan] = shannon_entropy(sub_tile[:, :, chan])
-    #
-    #     pyramid_pixels[ii] = np.mean(pixel1, axis=0) / 255.
-    #     pyramid_weights[ii] = np.mean(weight1, axis=0) / sub_tile_size
-    #     pyramid_weights1[ii] = np.mean(entropy_shannon1, axis=0)
-    #     pyramid_weights2[ii] = np.mean(entropy_shannon2, axis=0)
-    #
-    # pixel_mean = np.mean(pyramid_pixels, axis=0)
-    # pixel_stdev = np.std(pyramid_pixels, axis=0)
-    # weight_mean = np.mean(pyramid_weights, axis=1)
-    # pyramid_hash = np.hstack([pixel_mean, pixel_stdev, weight_mean])
-
-    return np.mean(glcm_feats, axis=1)
 
 
 def to_hls(bgr):
