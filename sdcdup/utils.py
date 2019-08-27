@@ -1038,20 +1038,6 @@ class EvalDataset(data.Dataset):
         return img[i * self.sz:(i + 1) * self.sz, j * self.sz:(j + 1) * self.sz, :]
 
 
-class WrappedDataLoader:
-    def __init__(self, dl, func):
-        self.dl = dl
-        self.func = func
-
-    def __len__(self):
-        return len(self.dl)
-
-    def __iter__(self):
-        batches = iter(self.dl)
-        for b in batches:
-            yield (self.func(b))
-
-
 class TrainDataset(data.Dataset):
     """Characterizes a dataset for PyTorch"""
 
@@ -1377,6 +1363,20 @@ class ExternalDataset(data.Dataset):
         X = self.image_transform(X)
         y = np.array([is_dup], dtype=np.float32)
         return X, y
+
+
+class WrappedDataLoader:
+    def __init__(self, dl, func):
+        self.dl = dl
+        self.func = func
+
+    def __len__(self):
+        return len(self.dl)
+
+    def __iter__(self):
+        batches = iter(self.dl)
+        for b in batches:
+            yield (self.func(b))
 
 
 class RandomHorizontalFlip:

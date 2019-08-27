@@ -1,4 +1,4 @@
 * eda - exploratory data analysis
-* poc - proof of concept
+* labeling
 * modeling
 * evaluation
