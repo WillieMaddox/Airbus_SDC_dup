@@ -258,68 +258,6 @@ def generate_tag_pair_lookup():
     return tpl
 
 
-def generate_overlap_tag_nines_mask():
-    overlap_tag_nines_mask = {}
-    for overlap_tag, overlap_map in overlap_tag_maps.items():
-        arr9 = np.zeros(9, dtype=np.bool8)
-        for idx in overlap_map:
-            arr9[idx] = True
-        overlap_tag_nines_mask[overlap_tag] = arr9
-    return overlap_tag_nines_mask
-
-
-def vec2ijpairs(vec, dim0=3):
-    assert len(vec) % dim0 == 0
-    dim1 = len(vec) // dim0
-    ijpairs = np.zeros((len(vec), 2), dtype=int)
-    for i, v in enumerate(vec):
-        ijpairs[i, 0] = v // dim0
-        ijpairs[i, 1] = v % dim1
-    return ijpairs
-
-
-def ijpairs2vec(ijpairs, dim0=3):
-    assert len(ijpairs) % dim0 == 0
-    vec = np.zeros(ijpairs, dtype=int)
-    for i, ijpair in enumerate(ijpairs):
-        vec[i] = ijpair[0] * dim0 + ijpair[1]
-    return vec
-
-
-def convert_nine2tups(dups9):
-    """
-    [0, 1, 0, 0, 0, 1, 1, 0, 0]
-    [(0, 1, 0), (0, 0, 1), (1, 0, 0)]
-    [(0, 1), (1, 2), (2, 0)]
-
-    :param dups9:
-    :return:
-    """
-    if type(dups9[0]) == str:
-        b9 = np.array([int(i) for i in dups9])
-    else:
-        b9 = np.array(dups9)
-    b33 = b9.reshape((3, 3))
-    x2 = np.argwhere(b33)
-    return [tuple(x) for x in x2]
-
-
-def convert_tups2nine(tups):
-    """
-    [(0, 1), (1, 2), (2, 0)]
-    [(0, 1, 0), (0, 0, 1), (1, 0, 0)]
-    [0, 1, 0, 0, 0, 1, 1, 0, 0]
-
-    :param tups:
-    :return:
-    """
-    b33 = np.zeros((3, 3), dtype=int)
-    for i, j in tups:
-        b33[i, j] = 1
-    b9 = b33.reshape(-1)
-    return b9
-
-
 @lru_cache(maxsize=None)
 def generate_ij_pairs(dim=3):
     return tuple([(i, j) for i in range(dim) for j in range(dim)])
@@ -428,28 +366,6 @@ def get_best_model_name(run_dir):
     best_model_filename = os.path.join(models_dir, run_dir, best_model)
     print(best_model_filename)
     return best_model_filename
-
-
-def holt_winters_second_order_ewma(x, span, beta):
-    # Ref http://connor-johnson.com/2014/02/01/smoothing-with-exponentially-weighted-moving-averages/
-    N = x.size
-    alpha = 2.0 / (1 + span)
-    s = np.zeros((N,))
-    b = np.zeros((N,))
-    s[0] = x[0]
-    for i in range(1, N):
-        s[i] = alpha * x[i] + (1 - alpha) * (s[i - 1] + b[i - 1])
-        b[i] = beta * (s[i] - s[i - 1]) + (1 - beta) * b[i - 1]
-    return s
-
-
-def reversed_recombined_holt_winters(x, span=15, beta=0.3):
-    # take EWMA in both directions with a smaller span term
-    fwd = holt_winters_second_order_ewma(x, span, beta)
-    bwd = holt_winters_second_order_ewma(x[::-1], span, beta)
-    c = np.vstack((fwd, bwd[::-1]))  # lump fwd and bwd together
-    c = np.mean(c, axis=0)  # average
-    return c
 
 
 def get_tile(img, idx, sz=256):
