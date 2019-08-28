@@ -153,7 +153,7 @@ class SDCImageContainer:
                  filename_md5hash='image_md5hash_grids.pkl',
                  filename_bm0hash='image_bm0hash_grids.pkl',
                  filename_cm0hash='image_cm0hash_grids.pkl',
-                 filename_greycop='image_greycop_grids.pkl',
+                 # filename_greycop='image_greycop_grids.pkl',
                  filename_entropy='image_entropy_grids.pkl',
                  filename_issolid='image_issolid_grids.pkl',
                  filename_shipcnt='image_shipcnt_grids.pkl',
@@ -182,10 +182,10 @@ class SDCImageContainer:
         self.tile_cm0hash_dtype = np.float
         self.tile_cm0hash_grids = {}
         self.tile_cm0hash_file = os.path.join(interim_data_dir, filename_cm0hash)
-        self.tile_greycop_len = 5
-        self.tile_greycop_dtype = np.float
-        self.tile_greycop_grids = {}
-        self.tile_greycop_file = os.path.join(interim_data_dir, filename_greycop)
+        # self.tile_greycop_len = 5
+        # self.tile_greycop_dtype = np.float
+        # self.tile_greycop_grids = {}
+        # self.tile_greycop_file = os.path.join(interim_data_dir, filename_greycop)
         self.tile_entropy_grids = {}
         self.tile_entropy_file = os.path.join(interim_data_dir, filename_entropy)
         self.tile_issolid_grids = {}
@@ -224,10 +224,10 @@ class SDCImageContainer:
             df = pd.read_pickle(self.tile_cm0hash_file)
             img_cm0hash_grids = {key: val for key, val in df.to_dict('split')['data']}
 
-        img_greycop_grids = {}
-        if os.path.exists(self.tile_greycop_file):
-            df = pd.read_pickle(self.tile_greycop_file)
-            img_greycop_grids = {key: val for key, val in df.to_dict('split')['data']}
+        # img_greycop_grids = {}
+        # if os.path.exists(self.tile_greycop_file):
+        #     df = pd.read_pickle(self.tile_greycop_file)
+        #     img_greycop_grids = {key: val for key, val in df.to_dict('split')['data']}
 
         img_entropy_grids = {}
         if os.path.exists(self.tile_entropy_file):
@@ -242,14 +242,14 @@ class SDCImageContainer:
         mm = 0
         hh = 0
         cc = 0
-        gg = 0
+        # gg = 0
         ee = 0
         ss = 0
 
         md5hash_records = []
         bm0hash_records = []
         cm0hash_records = []
-        greycop_records = []
+        # greycop_records = []
         entropy_records = []
         issolid_records = []
 
@@ -294,17 +294,17 @@ class SDCImageContainer:
             cm0hash_records.append({'ImageId': img_id, 'TileData': tile_cm0hash_grid})  # float
             self.tile_cm0hash_grids[img_id] = tile_cm0hash_grid
 
-            tile_greycop_grid = img_greycop_grids.get(img_id)
-            if tile_greycop_grid is None:
-                gg += 1
-                img = self.get_img(img_id) if img is None else img
-                tile_greycop_grid = np.zeros((self.n_tiles, self.tile_greycop_len), dtype=self.tile_greycop_dtype)
-                for idx in range(self.n_tiles):
-                    tile = self.get_tile(img, idx)
-                    tile_greycop_grid[idx] = gen_greycop_hash(tile, self.tile_greycop_len)
-
-            greycop_records.append({'ImageId': img_id, 'TileData': tile_greycop_grid})  # float
-            self.tile_greycop_grids[img_id] = tile_greycop_grid
+            # tile_greycop_grid = img_greycop_grids.get(img_id)
+            # if tile_greycop_grid is None:
+            #     gg += 1
+            #     img = self.get_img(img_id) if img is None else img
+            #     tile_greycop_grid = np.zeros((self.n_tiles, self.tile_greycop_len), dtype=self.tile_greycop_dtype)
+            #     for idx in range(self.n_tiles):
+            #         tile = self.get_tile(img, idx)
+            #         tile_greycop_grid[idx] = gen_greycop_hash(tile, self.tile_greycop_len)
+            #
+            # greycop_records.append({'ImageId': img_id, 'TileData': tile_greycop_grid})  # float
+            # self.tile_greycop_grids[img_id] = tile_greycop_grid
 
             tile_entropy_grid = img_entropy_grids.get(img_id)
             if tile_entropy_grid is None:
@@ -345,10 +345,10 @@ class SDCImageContainer:
                 df.to_pickle(self.tile_cm0hash_file)
                 cc = 0
 
-            if gg >= 5000:
-                df = pd.DataFrame().append(greycop_records)
-                df.to_pickle(self.tile_greycop_file)
-                gg = 0
+            # if gg >= 5000:
+            #     df = pd.DataFrame().append(greycop_records)
+            #     df.to_pickle(self.tile_greycop_file)
+            #     gg = 0
 
             if ee >= 5000:
                 df = pd.DataFrame().append(entropy_records)
@@ -372,9 +372,9 @@ class SDCImageContainer:
             df = pd.DataFrame().append(cm0hash_records)
             df.to_pickle(self.tile_cm0hash_file)
 
-        if gg > 0:
-            df = pd.DataFrame().append(greycop_records)
-            df.to_pickle(self.tile_greycop_file)
+        # if gg > 0:
+        #     df = pd.DataFrame().append(greycop_records)
+        #     df.to_pickle(self.tile_greycop_file)
 
         if ee > 0:
             df = pd.DataFrame().append(entropy_records)
