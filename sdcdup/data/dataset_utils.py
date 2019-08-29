@@ -9,10 +9,20 @@ import torch
 from torch.utils import data
 from tqdm import tqdm
 
-from sdcdup.utils import get_hamming_distance, fuzzy_join, generate_tag_pair_lookup, load_duplicate_truth, \
-    interim_data_dir, far_away_corners, get_img, idx_chan_map, to_hls, channel_shift, to_bgr, train_image_dir, \
-    train_tile_dir
+from sdcdup.utils import generate_tag_pair_lookup
+from sdcdup.utils import far_away_corners
+from sdcdup.utils import get_hamming_distance
+from sdcdup.utils import fuzzy_join
 from sdcdup.utils import get_tile
+from sdcdup.utils import get_img
+from sdcdup.utils import to_hls
+from sdcdup.utils import to_bgr
+from sdcdup.utils import idx_chan_map
+from sdcdup.utils import channel_shift
+from sdcdup.utils import load_duplicate_truth
+from sdcdup.utils import interim_data_dir
+from sdcdup.utils import train_image_dir
+from sdcdup.utils import train_tile_dir
 
 from sdcdup.features import SDCImageContainer
 

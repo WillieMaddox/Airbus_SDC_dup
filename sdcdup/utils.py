@@ -376,8 +376,9 @@ def fuzzy_compare(tile1, tile2):
 
 def read_duplicate_truth(filename):
     """
-    Reads files with the following line format,
-    "73fec0637.jpg 9a2f9d347.jpg 08 0"
+    Reads files with the following format:
+    img1_id, img2_id, img1_overlap_map, is_dup
+    e.g. "73fec0637.jpg 9a2f9d347.jpg 08 0"
 
     :param filename:
     :return:
@@ -397,14 +398,13 @@ def read_duplicate_truth(filename):
     return duplicate_truth
 
 
-def load_duplicate_truth(filepath=processed_data_dir, filename='duplicate_truth.txt', from_chunks=True, chunk_type='all'):
+def load_duplicate_truth(filepath=processed_data_dir, filename=None, chunk_type='both'):
     """
     Load in the main single file (duplicate_truth.txt) or load and concatenate all chunk_truth files.
     Should get the same result either way.
 
     :param filepath: str, path to filename or chunk files.
-    :param filename: str, name of complete truth file.
-    :param from_chunks: bool, If true, load truth from chunk files.
+    :param filename: str, file to read truth from. If None, load truth from all files in filepath that match chunk_type.
     :param chunk_type: str, if 'manual' load the verified truth only, if 'auto' load the automatic, otherwise load both.
     :return: dict
     """
@@ -417,7 +417,11 @@ def load_duplicate_truth(filepath=processed_data_dir, filename='duplicate_truth.
 
     duplicate_truth = None
 
-    if from_chunks:
+    if filename:
+        filename = os.path.join(filepath, filename)
+        if os.path.exists(filename):
+            duplicate_truth = read_duplicate_truth(filename)
+    else:
         chunk = {}
         for fname in sorted(os.listdir(filepath)):
             if not fname.startswith(chunk_prefix):
@@ -427,10 +431,6 @@ def load_duplicate_truth(filepath=processed_data_dir, filename='duplicate_truth.
         duplicate_truth = {}
         for k, v in sorted(chunk.items()):
             duplicate_truth[k] = v
-    else:
-        filename = os.path.join(filepath, filename)
-        if os.path.exists(filename):
-            duplicate_truth = read_duplicate_truth(filename)
 
     return duplicate_truth
 
@@ -442,9 +442,9 @@ def write_duplicate_truth(filename, duplicate_truth):
             ofs.write(' '.join([img1_id, img2_id, img1_overlap_tag, str(is_duplicate)]) + '\n')
 
 
-def update_duplicate_truth(pre_chunk, filepath=processed_data_dir, filename='duplicate_truth.txt', auto=True):
+def update_duplicate_truth(pre_chunk, filepath=processed_data_dir, verified=False):
 
-    duplicate_truth = load_duplicate_truth(filepath=filepath, filename=filename)
+    duplicate_truth = load_duplicate_truth(filepath=filepath)
 
     chunk = {}
     for (img1_id, img2_id, img1_overlap_tag), is_duplicate in pre_chunk.items():
@@ -458,20 +458,11 @@ def update_duplicate_truth(pre_chunk, filepath=processed_data_dir, filename='dup
 
     if len(chunk) > 0:
 
-        # First save chunk to a new file.
-        chunk_type = 'auto' if auto else 'truth'
+        chunk_type = 'truth' if verified else 'auto'
         datetime_now = get_datetime_now()
-        n_lines_in_chunk = len(chunk)
-        n_lines_in_chunk_str = pad_string(str(n_lines_in_chunk), 6)
-        chunk_filename = '_'.join(['chunk', chunk_type, datetime_now, n_lines_in_chunk_str]) + '.txt'
+        n_lines_in_chunk = pad_string(str(len(chunk)), 6)
+        chunk_filename = '_'.join(['chunk', chunk_type, datetime_now, n_lines_in_chunk]) + '.txt'
         write_duplicate_truth(os.path.join(filepath, chunk_filename), chunk)
-
-        # Then update the duplicate_truth.txt file.
-        chunk.update(duplicate_truth)
-        duplicate_truth = {}
-        for k, v in sorted(chunk.items()):
-            duplicate_truth[k] = v
-        write_duplicate_truth(os.path.join(filepath, filename), duplicate_truth)
 
         return duplicate_truth
 
