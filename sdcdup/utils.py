@@ -464,7 +464,10 @@ def update_duplicate_truth(pre_chunk, filepath=processed_data_dir, verified=Fals
         chunk_filename = '_'.join(['chunk', chunk_type, datetime_now, n_lines_in_chunk]) + '.txt'
         write_duplicate_truth(os.path.join(filepath, chunk_filename), chunk)
 
-        return duplicate_truth
+        for k, v in sorted(chunk.items()):
+            duplicate_truth[k] = v
+
+    return duplicate_truth
 
 
 def even_split(n_samples, batch_size, split):
