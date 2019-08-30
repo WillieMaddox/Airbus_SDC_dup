@@ -13,9 +13,11 @@ parse
 numpy
 pandas
 networkx
+graphviz
 jupyter
 jupyter-contrib-nbextensions
 scikit-image
+scikit-learn
 opencv-python
 opencv-contrib-python
 torch
