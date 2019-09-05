@@ -45,6 +45,15 @@ def subtract_channel_median(img1, img2, img1_overlap_tag):
     img2[slice2] = img2[slice2] - m12
 
 
+def draw_tile_number(img, idx, font=cv2.FONT_HERSHEY_SIMPLEX, scale=5, color=None, thickness=8):
+    if color is None:
+        color = tuple(int(x) for x in np.random.randint(0, 256, 3))
+    text_width, text_height = cv2.getTextSize(str(idx), font, scale, thickness)[0]
+    tile_col = ((idx % 3) * 256 + 128 - text_width // 2)
+    tile_row = ((idx // 3) * 256 + 128 + text_height // 2)
+    cv2.putText(img, str(idx), (tile_col, tile_row), font, scale, color, thickness)
+
+
 def draw_tile_bbox(img, idx, thickness, color):
     offset = (thickness // 2) + 1
     bbox_pt1, bbox_pt2 = tilebox_corners[idx]
