@@ -45,20 +45,20 @@ def subtract_channel_median(img1, img2, img1_overlap_tag):
     img2[slice2] = img2[slice2] - m12
 
 
-def draw_tile_bbox(img, idx, bbox_thickness, bbox_color):
-    offset = (bbox_thickness // 2) + 1
+def draw_tile_bbox(img, idx, thickness, color):
+    offset = (thickness // 2) + 1
     bbox_pt1, bbox_pt2 = tilebox_corners[idx]
     bbox_pt1 = np.clip(bbox_pt1, offset, 768 - offset)
     bbox_pt2 = np.clip(bbox_pt2, offset, 768 - offset)
-    cv2.rectangle(img, tuple(bbox_pt1), tuple(bbox_pt2), bbox_color, bbox_thickness)
+    cv2.rectangle(img, tuple(bbox_pt1), tuple(bbox_pt2), color, thickness)
 
 
-def draw_overlap_bbox(img, img_overlap_tag, bbox_thickness, bbox_color):
-    offset = (bbox_thickness // 2) + 1
+def draw_overlap_bbox(img, img_overlap_tag, thickness, color):
+    offset = (thickness // 2) + 1
     img_bbox_pt1, img_bbox_pt2 = boundingbox_corners[img_overlap_tag]
     img_bbox_pt1 = np.clip(img_bbox_pt1, offset, 768 - offset)
     img_bbox_pt2 = np.clip(img_bbox_pt2, offset, 768 - offset)
-    cv2.rectangle(img, tuple(img_bbox_pt1), tuple(img_bbox_pt2), bbox_color, bbox_thickness)
+    cv2.rectangle(img, tuple(img_bbox_pt1), tuple(img_bbox_pt2), color, thickness)
 
 
 def show_image(ax, img, title, ticks):
