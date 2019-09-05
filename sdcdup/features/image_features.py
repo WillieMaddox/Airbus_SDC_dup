@@ -607,7 +607,7 @@ def get_overlap_matches(sdcic, n_matching_tiles):
     return overlap_matches
 
 
-def create_image_overlap_properties(n_matching_tiles_list, score_types):
+def create_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_types=None):
 
     # bmh: blockMeanHash scores: Hamming distance between 2 blockMeanHash scores
     # cmh: colorMomentHash scores: L2 norm between 2 colorMomentHash scores
@@ -617,9 +617,14 @@ def create_image_overlap_properties(n_matching_tiles_list, score_types):
     # px0: Pixel scores: Hamming distance between 2 images pixelwise. Requires reading images so can be slow.
     # shp: Number of pixels that belong to ships:
 
-    sdcic = SDCImageContainer()
-    sdcic.preprocess_image_properties()
-    sdcic.preprocess_label_properties()
+    if score_types is None:
+        score_types = ['bmh', 'pix', 'px0']
+
+    if sdcic is None:
+        sdcic = SDCImageContainer()
+        sdcic.preprocess_image_properties()
+        if 'shp' in score_types:
+            sdcic.preprocess_label_properties()
 
     for n_matching_tiles in n_matching_tiles_list:
         overlap_matches = get_overlap_matches(sdcic, n_matching_tiles)
@@ -637,21 +642,23 @@ def create_image_overlap_properties(n_matching_tiles_list, score_types):
                 df.to_pickle(overlap_tile_scores_file)
 
 
-def load_image_overlap_properties(n_matching_tiles_list, score_types=None):
-
-    sdcic = SDCImageContainer()
-    sdcic.preprocess_image_properties()
-    sdcic.preprocess_label_properties()
+def load_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_types=None):
 
     if score_types is None:
         score_types = ['bmh', 'cmh', 'enp', 'pix', 'px0', 'shp']
+
+    if sdcic is None:
+        sdcic = SDCImageContainer()
+        sdcic.preprocess_image_properties()
+        if 'shp' in score_types:
+            sdcic.preprocess_label_properties()
 
     Overlap_Scores = namedtuple('overlap_scores', score_types)
 
     overlap_image_maps = {}
     for n_matching_tiles in n_matching_tiles_list:
-
         overlap_matches = get_overlap_matches(sdcic, n_matching_tiles)
+
         overlap_scores = {}
         for score_type in score_types:
             overlap_tile_scores_filename = f'overlap_{score_type}_tile_scores_{n_matching_tiles}.pkl'
@@ -687,7 +694,7 @@ if __name__ == '__main__':
 
     n_matching_tiles_list = [9, 6, 4, 3, 2, 1]
     score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
-    create_image_overlap_properties(n_matching_tiles_list, score_types)
+    create_image_overlap_properties(n_matching_tiles_list, score_types=score_types)
     # overlap_image_maps = load_image_overlap_properties(n_matching_tiles_list)
 
     print('done')
