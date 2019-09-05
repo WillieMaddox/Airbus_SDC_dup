@@ -1,11 +1,13 @@
 
 import numpy as np
+import cv2
 
+from sdcdup.utils import tilebox_corners
+from sdcdup.utils import overlap_tag_pairs
+from sdcdup.utils import boundingbox_corners
+from sdcdup.utils import generate_overlap_tag_slices
 
-def get_ticks(img_size=768, dtick=256, hist_size=256):
-    n_ticks = img_size // dtick + 1
-    ticks = [i * dtick * hist_size // 256 for i in range(n_ticks)]
-    return ticks
+overlap_tag_slices = generate_overlap_tag_slices()
 
 
 def holt_winters_second_order_ewma(x, span, beta):
@@ -28,3 +30,54 @@ def reversed_recombined_holt_winters(x, span=15, beta=0.3):
     c = np.vstack((fwd, bwd[::-1]))  # lump fwd and bwd together
     c = np.mean(c, axis=0)  # average
     return c
+
+
+def get_ticks(img_size=768, dtick=256, hist_size=256):
+    n_ticks = img_size // dtick + 1
+    return [i * dtick * hist_size // 256 for i in range(n_ticks)]
+
+
+def subtract_channel_median(img1, img2, img1_overlap_tag):
+    slice1 = overlap_tag_slices[img1_overlap_tag]
+    slice2 = overlap_tag_slices[overlap_tag_pairs[img1_overlap_tag]]
+    m12 = np.median(np.vstack([img1[slice1], img2[slice2]]), axis=(0, 1), keepdims=True).astype(np.uint8)
+    img1[slice1] = img1[slice1] - m12
+    img2[slice2] = img2[slice2] - m12
+
+
+def draw_tile_bbox(img, idx, bbox_thickness, bbox_color):
+    offset = (bbox_thickness // 2) + 1
+    bbox_pt1, bbox_pt2 = tilebox_corners[idx]
+    bbox_pt1 = np.clip(bbox_pt1, offset, 768 - offset)
+    bbox_pt2 = np.clip(bbox_pt2, offset, 768 - offset)
+    cv2.rectangle(img, tuple(bbox_pt1), tuple(bbox_pt2), bbox_color, bbox_thickness)
+
+
+def draw_overlap_bbox(img, img_overlap_tag, bbox_thickness, bbox_color):
+    offset = (bbox_thickness // 2) + 1
+    img_bbox_pt1, img_bbox_pt2 = boundingbox_corners[img_overlap_tag]
+    img_bbox_pt1 = np.clip(img_bbox_pt1, offset, 768 - offset)
+    img_bbox_pt2 = np.clip(img_bbox_pt2, offset, 768 - offset)
+    cv2.rectangle(img, tuple(img_bbox_pt1), tuple(img_bbox_pt2), bbox_color, bbox_thickness)
+
+
+def show_image(ax, img, title, ticks):
+    ax.imshow(img)
+    ax.set_title(title)
+    ax.set_xticks(ticks)
+    ax.set_yticks(ticks)
+
+
+def show_image_pair(ax1, ax2, imgmod1, imgmod2, img1_overlap_tag, draw_bboxes, bbox_thickness, bbox_color, title1, title2, ticks, median_color_shift):
+    img1 = imgmod1.parent_rgb
+    img2 = imgmod2.parent_rgb
+
+    if median_color_shift:
+        subtract_channel_median(img1, img2, img1_overlap_tag)
+
+    if draw_bboxes:
+        draw_overlap_bbox(img1, img1_overlap_tag, bbox_thickness, bbox_color)
+        draw_overlap_bbox(img2, overlap_tag_pairs[img1_overlap_tag], bbox_thickness, bbox_color)
+
+    show_image(ax1, img1, title1, ticks)
+    show_image(ax2, img2, title2, ticks)
