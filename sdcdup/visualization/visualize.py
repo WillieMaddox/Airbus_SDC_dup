@@ -1,6 +1,7 @@
-
+from collections import namedtuple
 import numpy as np
 import cv2
+from scipy import stats
 
 from sdcdup.utils import tilebox_corners
 from sdcdup.utils import overlap_tag_pairs
@@ -8,6 +9,7 @@ from sdcdup.utils import boundingbox_corners
 from sdcdup.utils import generate_overlap_tag_slices
 
 overlap_tag_slices = generate_overlap_tag_slices()
+ChannelShift = namedtuple('ChannelShift', 'method shared')
 
 
 def holt_winters_second_order_ewma(x, span, beta):
@@ -37,12 +39,32 @@ def get_ticks(img_size=768, dtick=256, hist_size=256):
     return [i * dtick * hist_size // 256 for i in range(n_ticks)]
 
 
-def subtract_channel_median(img1, img2, img1_overlap_tag):
+def subtract_channel_average(img1, img2, img1_overlap_tag, shift):
     slice1 = overlap_tag_slices[img1_overlap_tag]
     slice2 = overlap_tag_slices[overlap_tag_pairs[img1_overlap_tag]]
-    m12 = np.median(np.vstack([img1[slice1], img2[slice2]]), axis=(0, 1), keepdims=True).astype(np.uint8)
-    img1[slice1] = img1[slice1] - m12
-    img2[slice2] = img2[slice2] - m12
+    if shift.shared:
+        # Use the average channel value between both images.
+        img12_stack = np.vstack([img1[slice1], img2[slice2]])
+        if shift.method == 'median':
+            m12 = np.median(img12_stack, axis=(0, 1), keepdims=True).astype(np.uint8)
+        elif shift.method == 'mode':
+            m12 = stats.mode(img12_stack.reshape(-1, 3), axis=0)[0]
+        else:
+            return
+        img1[slice1] = img1[slice1] - m12
+        img2[slice2] = img2[slice2] - m12
+    else:
+        # Each image uses its own average channel values
+        if shift.method == 'median':
+            m1 = np.median(img1[slice1], axis=(0, 1), keepdims=True).astype(np.uint8)
+            m2 = np.median(img2[slice2], axis=(0, 1), keepdims=True).astype(np.uint8)
+        elif shift.method == 'mode':
+            m1 = stats.mode(img1[slice1].reshape(-1, 3), axis=0)[0]
+            m2 = stats.mode(img2[slice2].reshape(-1, 3), axis=0)[0]
+        else:
+            return
+        img1[slice1] = img1[slice1] - m1
+        img2[slice2] = img2[slice2] - m2
 
 
 def draw_tile_number(img, idx, font=cv2.FONT_HERSHEY_SIMPLEX, scale=5, color=None, thickness=8):
@@ -77,12 +99,12 @@ def show_image(ax, img, title, ticks):
     ax.set_yticks(ticks)
 
 
-def show_image_pair(ax1, ax2, imgmod1, imgmod2, img1_overlap_tag, draw_bboxes, bbox_thickness, bbox_color, title1, title2, ticks, median_color_shift):
+def show_image_pair(ax1, ax2, imgmod1, imgmod2, img1_overlap_tag, draw_bboxes, bbox_thickness, bbox_color, title1, title2, ticks, shift=ChannelShift('', True)):
     img1 = imgmod1.parent_rgb
     img2 = imgmod2.parent_rgb
 
-    if median_color_shift:
-        subtract_channel_median(img1, img2, img1_overlap_tag)
+    if shift.method in ('median', 'mode'):
+        subtract_channel_average(img1, img2, img1_overlap_tag, shift)
 
     if draw_bboxes:
         draw_overlap_bbox(img1, img1_overlap_tag, bbox_thickness, bbox_color)
