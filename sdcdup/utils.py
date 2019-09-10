@@ -511,7 +511,7 @@ def to_bgr(hls):
     return cv2.cvtColor(hls, cv2.COLOR_HLS2BGR_FULL)
 
 
-def channel_shift(img, chan, val):
+def hls_shift(img, chan, val):
     """
     img must already be in hls (hue, lightness, saturation) format.
     img values must be uint8. [0, 255] so that hue will wrap around correctly.
@@ -611,7 +611,7 @@ class ImgMod:
             if self._hls_gain is None:
                 self._cv2_hls = self.parent_hls
             else:
-                self._cv2_hls = channel_shift(self.parent_hls, self._hls_chan, self._hls_gain)
+                self._cv2_hls = hls_shift(self.parent_hls, self._hls_chan, self._hls_gain)
         return self._cv2_hls
 
     @property

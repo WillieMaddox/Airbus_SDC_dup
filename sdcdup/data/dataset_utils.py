@@ -18,7 +18,7 @@ from sdcdup.utils import get_img
 from sdcdup.utils import to_hls
 from sdcdup.utils import to_bgr
 from sdcdup.utils import idx_chan_map
-from sdcdup.utils import channel_shift
+from sdcdup.utils import hls_shift
 from sdcdup.utils import load_duplicate_truth
 from sdcdup.utils import interim_data_dir
 from sdcdup.utils import train_image_dir
@@ -307,7 +307,7 @@ class TrainDataset(data.Dataset):
 
     def color_shift(self, img, chan, gain):
         hls = to_hls(img)
-        hls_shifted = channel_shift(hls, chan, gain)
+        hls_shifted = hls_shift(hls, chan, gain)
         return to_bgr(hls_shifted)
 
     def get_tile(self, img, idx, sz=256):
