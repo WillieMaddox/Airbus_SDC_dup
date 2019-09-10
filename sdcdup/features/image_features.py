@@ -159,7 +159,7 @@ class SDCImageContainer:
                  filename_shipcnt='image_shipcnt_grids.pkl',
                  **kwargs):
 
-        # This class assumes images are square and height and width are divisible by tile_size.
+        # This class assumes images are square and that height and width are divisible by tile_size.
         super().__init__(**kwargs)
 
         self.train_image_dir = os.path.join(raw_data_dir, 'train_768')
@@ -655,7 +655,7 @@ def load_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_types
 
     Overlap_Scores = namedtuple('overlap_scores', score_types)
 
-    overlap_image_maps = {}
+    overlap_image_maps = defaultdict(dict)
     for n_matching_tiles in n_matching_tiles_list:
         overlap_matches = get_overlap_matches(sdcic, n_matching_tiles)
 
@@ -663,21 +663,15 @@ def load_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_types
         for score_type in score_types:
             overlap_tile_scores_filename = f'overlap_{score_type}_tile_scores_{n_matching_tiles}.pkl'
             df = pd.read_pickle(os.path.join(interim_data_dir, overlap_tile_scores_filename))
-            overlap_tile_scores = {}
+            overlap_tile_scores = defaultdict(dict)
             for img1_id, img2_id, img1_overlap_tag, *scores in df.to_dict('split')['data']:
-                if (img1_id, img2_id) not in overlap_tile_scores:
-                    overlap_tile_scores[(img1_id, img2_id)] = {}
                 overlap_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(scores)
             overlap_scores[score_type] = overlap_tile_scores
 
         for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
-
             scores_list = []
             for score_type in score_types:
                 scores_list.append(overlap_scores[score_type][(img1_id, img2_id)][img1_overlap_tag])
-
-            if (img1_id, img2_id) not in overlap_image_maps:
-                overlap_image_maps[(img1_id, img2_id)] = {}
             overlap_image_maps[(img1_id, img2_id)][img1_overlap_tag] = Overlap_Scores(*scores_list)
 
     return overlap_image_maps
