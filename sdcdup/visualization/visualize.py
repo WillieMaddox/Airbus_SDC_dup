@@ -3,7 +3,6 @@ import numpy as np
 import cv2
 from scipy import stats
 
-from sdcdup.utils import tilebox_corners
 from sdcdup.utils import overlap_tag_pairs
 from sdcdup.utils import boundingbox_corners
 from sdcdup.utils import generate_overlap_tag_slices
@@ -67,29 +66,42 @@ def subtract_channel_average(img1, img2, img1_overlap_tag, shift):
         img2[slice2] = img2[slice2] - m2
 
 
-def draw_tile_number(img, idx, font=cv2.FONT_HERSHEY_SIMPLEX, scale=5, color=None, thickness=8):
+def draw_tile_number(img, idx, value=None, img_size=768, font=cv2.FONT_HERSHEY_SIMPLEX, scale=5, color=None, thickness=8):
+
+    value = value or idx
     if color is None:
         color = tuple(int(x) for x in np.random.randint(0, 256, 3))
-    text_width, text_height = cv2.getTextSize(str(idx), font, scale, thickness)[0]
-    tile_col = ((idx % 3) * 256 + 128 - text_width // 2)
-    tile_row = ((idx // 3) * 256 + 128 + text_height // 2)
-    cv2.putText(img, str(idx), (tile_col, tile_row), font, scale, color, thickness)
+    text_width, text_height = cv2.getTextSize(str(value), font, scale, thickness)[0]
+    tile_col = (((idx * 256) % img_size) + 128 - text_width // 2)
+    tile_row = (((idx * 256) // img_size) * 256 + 128 + text_height // 2)
+    cv2.putText(img, str(value), (tile_col, tile_row), font, scale, color, thickness)
 
 
-def draw_tile_bbox(img, idx, thickness, color):
+def draw_bbox(img, bbox, thickness, color, img_size=None):
+    img_size = img_size or img.shape[0]
     offset = (thickness // 2) + 1
-    bbox_pt1, bbox_pt2 = tilebox_corners[idx]
-    bbox_pt1 = np.clip(bbox_pt1, offset, 768 - offset)
-    bbox_pt2 = np.clip(bbox_pt2, offset, 768 - offset)
+    bbox_pt1 = np.clip(bbox[0], offset, img_size - offset)
+    bbox_pt2 = np.clip(bbox[1], offset, img_size - offset)
     cv2.rectangle(img, tuple(bbox_pt1), tuple(bbox_pt2), color, thickness)
 
 
-def draw_overlap_bbox(img, img_overlap_tag, thickness, color):
-    offset = (thickness // 2) + 1
-    img_bbox_pt1, img_bbox_pt2 = boundingbox_corners[img_overlap_tag]
-    img_bbox_pt1 = np.clip(img_bbox_pt1, offset, 768 - offset)
-    img_bbox_pt2 = np.clip(img_bbox_pt2, offset, 768 - offset)
-    cv2.rectangle(img, tuple(img_bbox_pt1), tuple(img_bbox_pt2), color, thickness)
+def draw_tile_bbox(img, idx, thickness, color, img_size=None, tile_size=256):
+    height, width, _ = img.shape
+    if img_size is None:
+        img_size = max(height, width)
+
+    assert height % tile_size == 0
+    assert width % tile_size == 0
+    ncols = width // tile_size
+
+    bbox_pt1 = np.array([idx // ncols, idx % ncols])
+    bbox_pt2 = bbox_pt1 + 1
+    bbox = np.stack([bbox_pt1, bbox_pt2]) * tile_size
+    draw_bbox(img, bbox, thickness, color, img_size=img_size)
+
+
+def draw_overlap_bbox(img, img_overlap_tag, thickness, color, img_size=None):
+    draw_bbox(img, boundingbox_corners[img_overlap_tag], thickness, color, img_size=img_size)
 
 
 def show_image(ax, img, title, ticks):

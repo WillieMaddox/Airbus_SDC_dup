@@ -50,17 +50,6 @@ ij_pairs_3x3 = ((0, 0), (0, 1), (0, 2),
 idx2ijpair = {idx: ij for idx, ij in enumerate(ij_pairs_3x3)}
 ijpair2idx = {ij: idx for idx, ij in enumerate(ij_pairs_3x3)}
 
-tilebox_corners = (
-    np.array([[0, 0], [1, 1]]) * B,
-    np.array([[1, 0], [2, 1]]) * B,
-    np.array([[2, 0], [3, 1]]) * B,
-    np.array([[0, 1], [1, 2]]) * B,
-    np.array([[1, 1], [2, 2]]) * B,
-    np.array([[2, 1], [3, 2]]) * B,
-    np.array([[0, 2], [1, 3]]) * B,
-    np.array([[1, 2], [2, 3]]) * B,
-    np.array([[2, 2], [3, 3]]) * B)
-
 new_tag_mapping = {
     '0000': '00',
     '0001': '01',
