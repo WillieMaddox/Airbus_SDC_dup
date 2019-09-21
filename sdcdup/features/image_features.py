@@ -529,7 +529,14 @@ class SDCImageContainer:
         return np.array(scores)
 
     def find_valid_pairings_by_hash(self, hash_id, sorted_hash_dict, level_overlap_tags):
+        """
+        This currently only works with the hashes stored in self.tile_bm0hash_grids
 
+        :param hash_id:
+        :param sorted_hash_dict:
+        :param level_overlap_tags:
+        :return:
+        """
         img_list = list(sorted(sorted_hash_dict[hash_id]))
 
         hamming_distance_lookup = {}
