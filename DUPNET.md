@@ -22,6 +22,7 @@ This brings the total down to ~4 million datapoints and this number can vary dep
 Regardless, 4 million images is overkill.  We always end up randomly sampling down to somewhere between 100k and 200k datapoints, 
 after which we then further split into training, validation and testing.  
 We find that this is more than enough data to sufficiently train a model capable of outperforming any of the [image metric](IMAGE_METRICS.md) based algorithms. 
+
 ---
 ### Augmentation
 We use the following 3 image augmentation methods during training:
@@ -59,6 +60,7 @@ image is significantly different enough to be regarded as not a duplicate.
 We will add horizontal and/or vertical flips.
 We'll restrict rotations to 0, 90, 180, and 270 degrees so we don't have to deal with cropping or resizing.
 Ensure that **both** images are flipped and rotated the same.
+
 ---
 ### Model
 

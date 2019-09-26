@@ -13,6 +13,7 @@ If duplicate data points occur across the three datasets, the performance in our
 This in turn, hinders our ability to detect if the model we are training is overfitting. 
 Unfortunately, the Airbus_SDC dataset has a significant amount of duplicate data.
 The majority of the duplicate data is in the form of image overlaps which result when cropping `768 x 768` images from the original satellite acquisitions using a stride of `256`.   
+
 ---
 Because we are dealing with images that can only overlap based on a fixed stride of `256`, it is useful to refer to each `256 x 256` tile in a `768 x 768` image with an index.
 The index starts in the upper left corner and moves from left to right as can be seen in the image below.
@@ -79,6 +80,7 @@ The overlap patterns are arranged in a `5 x 5` grid to illustrate their symmetry
 For each pattern, the green and red boxes outline of the first and second `768 x 768` images, respectively.
 The regions where they overlap is shaded along with the number of `256 x 256` tiles contained in the overlap.
 In all there is one 9-tile overlap pattern, four 6-tile overlap patterns, four 4-tile patterns, four 3-tile patterns, eight 2-tile patterns, and four 1-tile patterns.
+
 ---
 In the following example, only the regions bounded by green boxes are duplicates.
 
@@ -90,14 +92,14 @@ However, this is not always the case.  Consider the following example:
 ![Example4a](notebooks/figures/46b87e21c.jpg_f881c203f.jpg_08.jpg)
 
 Excluding the upper right tile of the first image where the ship is located, these two images look identical.
-But what about the rest of the image?  
+But what about the rest of the image? 
 Which of the 25 patterns, if any, describe their overlap?
 Take for example, one possible pattern:
 
 ![Example4b](notebooks/figures/46b87e21c.jpg_f881c203f.jpg_48a.jpg)
 
 It is hard to tell just by looking at these overlap regions if they are duplicate.
-In situations like this we use a technique called average channel subtraction.  
+In situations like this we use a technique called average channel subtraction. 
 We first find the median of each channel across both images but only for pixels in the overlapping region.
 We then subtract from each image the shared channel median.
 The trick is to maintain unsigned int8 for the pixel datatype.
@@ -139,6 +141,7 @@ But that is about all we can say about these two images.
 The other 8 tiles are solid white (i.e. [255, 255, 255]), which means we have no way of knowing if these two images correspond to the same location or different locations.
 Thus, any overlap patterns that contain all white pixels in both images cannot be labeled duplicate or non-duplicate.
 This restriction is not limited to only white tiles but in fact any two tiles having the same solid color. 
+
 --- 
 Below we show six examples of images that have at least 2 tiles with the same solid color.
 Above each image is the filename and the md5 hash of a single solid tile (indicated by the red bounding box).
@@ -163,6 +166,7 @@ The blue tiles represent the borders of the original acquisition.
 Note that the hash is different for all 4 sides. 
 This is because the inner edge of each blue tile is slightly offset from blue. 
 Fortunately, these _solid tile_ edge cases are easy to detect and filter out.
+
 ---
 I created the [tile_overlap](notebooks/eda/tile_overlap.ipynb) notebook which I use to generate almost every image in this README.
 For the sake of brevity, I only included a few examples from the notebook.
