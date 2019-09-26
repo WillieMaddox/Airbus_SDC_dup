@@ -1,2 +1,8 @@
 # Airbus_SDC_dup
-Finding and tagging duplicate satellite images based on overlapping sub tiles.
+Detecting duplicate regions of overlapping satellite imagery.
+
+* [Installing](INSTALL.md)
+* [Research](RESEARCH.md)
+* [Image Metrics](IMAGE_METRICS.md)
+* [DupNet](DUPNET.md)
+* [Todo](TODO.md)
