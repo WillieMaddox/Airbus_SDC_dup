@@ -63,7 +63,6 @@ def gen_entropy(tile):
     entropy_shannon = np.zeros(3)
     for chan in range(3):
         entropy_shannon[chan] = shannon_entropy(tile[:, :, chan])
-
     return entropy_shannon
 
 
@@ -204,7 +203,6 @@ class SDCImageContainer:
             'bmh': self.get_bmh_scores,
             'cmh': self.get_cmh_scores,
             'gcm': self.get_gcm_scores,
-            'pyr': self.get_pyr_scores,
             'enp': self.get_enp_scores,
             'pix': self.gen_pix_scores,
             'px0': self.gen_px0_scores,
@@ -611,7 +609,7 @@ def create_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_typ
     # bmh: blockMeanHash scores: Hamming distance between 2 blockMeanHash scores
     # cmh: colorMomentHash scores: L2 norm between 2 colorMomentHash scores
     # FIXME gcm: skimage greycomatrix scores: Relative difference between 2 greycop scores.
-    # enp: Entropy scores: Exponential of the negative L2 norm between 2 entropy scores.
+    # FIXME enp: Entropy scores: Exponential of the negative L2 norm between 2 entropy scores.
     # pix: Pixel scores: Fuzzy difference between 2 images pixelwise. Requires reading images so can be slow.
     # px0: Pixel scores: Hamming distance between 2 images pixelwise. Requires reading images so can be slow.
     # shp: Number of pixels that belong to ships:
@@ -644,7 +642,7 @@ def create_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_typ
 def load_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_types=None):
 
     if score_types is None:
-        score_types = ['bmh', 'cmh', 'enp', 'pix', 'px0', 'shp']
+        score_types = ['bmh', 'cmh', 'pix', 'px0', 'shp']
 
     if sdcic is None:
         sdcic = SDCImageContainer()
