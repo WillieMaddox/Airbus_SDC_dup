@@ -6,8 +6,8 @@ The installer will save the the results to intermediate files which can then be 
 Below we show a list of algorithms we tested to find duplicates.  
 
 One option is to compare various per-image metrics using various image "similarity" algorithms:
-- [image hashes](notebooks/eda/3_image_hashes.ipynb)
-- [image entropy](notebooks/eda/4_image_entropy.ipynb)
+- [image hashes](notebooks/eda/image_hashes.ipynb)
+- [image entropy](notebooks/eda/image_entropy.ipynb)
 - [image histograms](notebooks/eda/image_histograms.ipynb) 
 
 Unfortunately, no single one of these nor any combination work particularly well across the entire dataset. 

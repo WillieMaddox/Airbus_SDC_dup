@@ -50,33 +50,6 @@ ij_pairs_3x3 = ((0, 0), (0, 1), (0, 2),
 idx2ijpair = {idx: ij for idx, ij in enumerate(ij_pairs_3x3)}
 ijpair2idx = {ij: idx for idx, ij in enumerate(ij_pairs_3x3)}
 
-new_tag_mapping = {
-    '0000': '00',
-    '0001': '01',
-    '0002': '02',
-    '0102': '12',
-    '0202': '22',
-    '0010': '03',
-    '0011': '04',
-    '0012': '05',
-    '0112': '15',
-    '0212': '25',
-    '0020': '06',
-    '0021': '07',
-    '0022': '08',
-    '0122': '18',
-    '0222': '28',
-    '1020': '36',
-    '1021': '37',
-    '1022': '38',
-    '1122': '48',
-    '1222': '58',
-    '2020': '66',
-    '2021': '67',
-    '2022': '68',
-    '2122': '78',
-    '2222': '88'}
-
 boundingbox_corners = {
     '00': np.array([[0, 0], [1, 1]]) * B,
     '01': np.array([[0, 0], [2, 1]]) * B,
@@ -566,11 +539,6 @@ class ImgMod:
         self._hls_gain = gain
         self._cv2_hls = None
         return self.cv2_rgb
-
-    def scale(self, minval, maxval):
-        m = 255.0 * (maxval - minval)
-        res = m * (self.parent_bgr - minval)
-        return np.around(res).astype(np.uint8)
 
     @property
     def shape(self):

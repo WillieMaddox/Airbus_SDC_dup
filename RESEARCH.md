@@ -165,6 +165,6 @@ This is because the inner edge of each blue tile is slightly offset from blue.
 Fortunately, these _solid tile_ edge cases are easy to detect and filter out.
 
 ---
-I created the [tile_overlap](notebooks/eda/tile_overlap.ipynb) notebook which I use to generate almost every image in this README.
+I created the [tile_overlap](notebooks/tile_overlap.ipynb) notebook which I use to generate almost every image in this README.
 For the sake of brevity, I only included a few examples from the notebook.
 There are quite a few more interesting examples so feel free to check them out on your own.
