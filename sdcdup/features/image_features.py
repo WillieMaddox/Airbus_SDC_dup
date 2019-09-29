@@ -169,7 +169,6 @@ class SDCImageContainer:
         self.n_cols = 3
         self.n_tiles = self.n_rows * self.n_cols
         self.tile_score_max = self.sz * self.sz * 3 * 255  # 3 color channels, uint8
-        self.tile_slice = slice(8, -8)
         self.tile_md5hash_len = 8
         self.tile_md5hash_dtype = f'<U{self.tile_md5hash_len}'
         self.tile_md5hash_grids = {}
@@ -186,10 +185,15 @@ class SDCImageContainer:
         # self.tile_greycop_dtype = np.float
         # self.tile_greycop_grids = {}
         # self.tile_greycop_file = os.path.join(interim_data_dir, filename_greycop)
+        self.tile_entropy_len = 3
+        self.tile_entropy_dtype = np.float
         self.tile_entropy_grids = {}
         self.tile_entropy_file = os.path.join(interim_data_dir, filename_entropy)
+        self.tile_issolid_len = 3
+        self.tile_issolid_dtype = np.int
         self.tile_issolid_grids = {}
         self.tile_issolid_file = os.path.join(interim_data_dir, filename_issolid)
+        self.tile_shipcnt_dtype = np.int
         self.tile_shipcnt_grids = {}
         self.tile_shipcnt_file = os.path.join(interim_data_dir, filename_shipcnt)
         self.matches = []
@@ -310,7 +314,7 @@ class SDCImageContainer:
             if tile_entropy_grid is None:
                 ee += 1
                 img = self.get_img(img_id) if img is None else img
-                tile_entropy_grid = np.zeros((self.n_tiles, 3), dtype=np.float)
+                tile_entropy_grid = np.zeros((self.n_tiles, self.tile_entropy_len), dtype=self.tile_entropy_dtype)
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
                     tile_entropy_grid[idx] = gen_entropy(tile)
@@ -322,7 +326,7 @@ class SDCImageContainer:
             if tile_issolid_grid is None:
                 ss += 1
                 img = self.get_img(img_id) if img is None else img
-                tile_issolid_grid = np.zeros((self.n_tiles, 3), dtype=np.int)
+                tile_issolid_grid = np.zeros((self.n_tiles, self.tile_issolid_len), dtype=self.tile_issolid_dtype)
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
                     tile_issolid_grid[idx] = get_issolid_flags(tile)
@@ -464,18 +468,6 @@ class SDCImageContainer:
             gcm1 = self.tile_greycop_grids[img1_id][idx1]
             gcm2 = self.tile_greycop_grids[img2_id][idx2]
             score = relative_diff(gcm1, gcm2)
-            scores.append(score)
-        return np.array(scores)
-
-    def get_pyr_scores(self, img1_id, img2_id, img1_overlap_tag):
-        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
-        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
-        scores = []
-        for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            pyr1 = self.tile_pyramid_grids[img1_id][idx1]
-            pyr2 = self.tile_pyramid_grids[img2_id][idx2]
-            score = np.exp(-np.linalg.norm(pyr1 - pyr2))
-            # score = max(0.0, 1.0 - np.mean((pyr1 + pyr2) / 2.0))
             scores.append(score)
         return np.array(scores)
 

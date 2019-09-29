@@ -72,7 +72,7 @@ Also, the location of ships are different.
 The two examples above are instances where both images overlap eachother completely.
 However, the Airbus_SDC dataset also contains image pairs that overlap partially.
 The partitioning scheme used for the Airbus_SDC was to chop up large `6000 x 60000` acquisitions into smaller, more manageable `768 x 768` chunks, using a stride of `256` along both spatial dimensions ([Ref](https://www.kaggle.com/c/airbus-ship-detection/discussion/64675)).
-This means that there are at most 25 possible ways in which an image can overlap with another image. 
+This means that there are exactly 25 ways in which an image can overlap with another image. 
 
 ![fig5x5](notebooks/figures/overlap-5x5.jpg)
 
@@ -80,9 +80,7 @@ The overlap patterns are arranged in a `5 x 5` grid to illustrate their symmetry
 For each pattern, the green and red boxes outline of the first and second `768 x 768` images, respectively.
 The regions where they overlap is shaded along with the number of `256 x 256` tiles contained in the overlap.
 In all there is one 9-tile overlap pattern, four 6-tile overlap patterns, four 4-tile patterns, four 3-tile patterns, eight 2-tile patterns, and four 1-tile patterns.
-
----
-In the following example, only the regions bounded by green boxes are duplicates.
+For example, only the regions bounded by green boxes are duplicates.
 
 ![Example3](notebooks/figures/001234638.jpg_dde85f1d2.jpg_07.jpg)
 
@@ -99,10 +97,10 @@ Take for example, one possible pattern:
 ![Example4b](notebooks/figures/46b87e21c.jpg_f881c203f.jpg_48a.jpg)
 
 It is hard to tell just by looking at these overlap regions if they are duplicate.
-In situations like this we use a technique called average channel subtraction. 
+For situations like this we leverage a technique called average channel subtraction. 
 We first find the median of each channel across both images but only for pixels in the overlapping region.
 We then subtract from each image the shared channel median.
-The trick is to maintain unsigned int8 for the pixel datatype.
+The trick is to make sure the pixels are unsigned int8 when doing the subtraction operation.
 Pixels with values less than the median will be forced to wrap around to higher values.
 Using this technique, we obtain the modified image.
   
@@ -127,8 +125,7 @@ When we calculate the distance metrics and perform average channel subtraction o
 
 ![Example5a](notebooks/figures/536356d11.jpg_88c2acaf8.jpg_15.jpg)
 
-Even though the number of unequal pixels is very large, 
-it is visually obvious the two images are duplicates (i.e. same ship location, heading, cargo configuration).
+These two images are obviously duplicates (i.e. same ship location, heading, cargo configuration) but the number of unequal pixels is very large.
 Large differences in distance metrics therefore do not imply non-duplicates.  What about the other way around?
 Take a look at the following two extremely cloudy images:
 
