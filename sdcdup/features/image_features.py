@@ -211,35 +211,12 @@ class SDCImageContainer:
 
     def preprocess_image_properties(self):
 
-        img_md5hash_grids = {}
-        if os.path.exists(self.tile_md5hash_file):
-            df = pd.read_pickle(self.tile_md5hash_file)
-            img_md5hash_grids = {key: val for key, val in df.to_dict('split')['data']}
-
-        img_bm0hash_grids = {}
-        if os.path.exists(self.tile_bm0hash_file):
-            df = pd.read_pickle(self.tile_bm0hash_file)
-            img_bm0hash_grids = {key: val for key, val in df.to_dict('split')['data']}
-
-        img_cm0hash_grids = {}
-        if os.path.exists(self.tile_cm0hash_file):
-            df = pd.read_pickle(self.tile_cm0hash_file)
-            img_cm0hash_grids = {key: val for key, val in df.to_dict('split')['data']}
-
-        # img_greycop_grids = {}
-        # if os.path.exists(self.tile_greycop_file):
-        #     df = pd.read_pickle(self.tile_greycop_file)
-        #     img_greycop_grids = {key: val for key, val in df.to_dict('split')['data']}
-
-        img_entropy_grids = {}
-        if os.path.exists(self.tile_entropy_file):
-            df = pd.read_pickle(self.tile_entropy_file)
-            img_entropy_grids = {key: val for key, val in df.to_dict('split')['data']}
-
-        img_issolid_grids = {}
-        if os.path.exists(self.tile_issolid_file):
-            df = pd.read_pickle(self.tile_issolid_file)
-            img_issolid_grids = {key: val for key, val in df.to_dict('split')['data']}
+        image_md5hash_grids = self.load_image_property(self.tile_md5hash_file)
+        image_bm0hash_grids = self.load_image_property(self.tile_bm0hash_file)
+        image_cm0hash_grids = self.load_image_property(self.tile_cm0hash_file)
+        # image_greycop_grids = self.load_image_property(self.tile_greycop_file)
+        image_entropy_grids = self.load_image_property(self.tile_entropy_file)
+        image_issolid_grids = self.load_image_property(self.tile_issolid_file)
 
         mm = 0
         hh = 0
@@ -248,19 +225,12 @@ class SDCImageContainer:
         ee = 0
         ss = 0
 
-        md5hash_records = []
-        bm0hash_records = []
-        cm0hash_records = []
-        # greycop_records = []
-        entropy_records = []
-        issolid_records = []
-
         img_ids = os.listdir(self.train_image_dir)
         for img_id in tqdm(sorted(img_ids)):
 
             img = None
 
-            tile_md5hash_grid = img_md5hash_grids.get(img_id)
+            tile_md5hash_grid = image_md5hash_grids.get(img_id)
             if tile_md5hash_grid is None:
                 mm += 1
                 img = self.get_img(img_id)
@@ -268,11 +238,9 @@ class SDCImageContainer:
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
                     tile_md5hash_grid[idx] = hashlib.md5(tile.tobytes()).hexdigest()[:self.tile_md5hash_len]
-
-            md5hash_records.append({'ImageId': img_id, 'TileData': tile_md5hash_grid})  # str
             self.tile_md5hash_grids[img_id] = tile_md5hash_grid
 
-            tile_bm0hash_grid = img_bm0hash_grids.get(img_id)
+            tile_bm0hash_grid = image_bm0hash_grids.get(img_id)
             if tile_bm0hash_grid is None:
                 hh += 1
                 img = self.get_img(img_id) if img is None else img
@@ -280,11 +248,9 @@ class SDCImageContainer:
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
                     tile_bm0hash_grid[idx] = img_hash.blockMeanHash(tile, mode=0)[0]
-
-            bm0hash_records.append({'ImageId': img_id, 'TileData': tile_bm0hash_grid})  # int
             self.tile_bm0hash_grids[img_id] = tile_bm0hash_grid
 
-            tile_cm0hash_grid = img_cm0hash_grids.get(img_id)
+            tile_cm0hash_grid = image_cm0hash_grids.get(img_id)
             if tile_cm0hash_grid is None:
                 cc += 1
                 img = self.get_img(img_id) if img is None else img
@@ -292,11 +258,9 @@ class SDCImageContainer:
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
                     tile_cm0hash_grid[idx] = img_hash.colorMomentHash(tile)[0]
-
-            cm0hash_records.append({'ImageId': img_id, 'TileData': tile_cm0hash_grid})  # float
             self.tile_cm0hash_grids[img_id] = tile_cm0hash_grid
 
-            # tile_greycop_grid = img_greycop_grids.get(img_id)
+            # tile_greycop_grid = image_greycop_grids.get(img_id)
             # if tile_greycop_grid is None:
             #     gg += 1
             #     img = self.get_img(img_id) if img is None else img
@@ -308,7 +272,7 @@ class SDCImageContainer:
             # greycop_records.append({'ImageId': img_id, 'TileData': tile_greycop_grid})  # float
             # self.tile_greycop_grids[img_id] = tile_greycop_grid
 
-            tile_entropy_grid = img_entropy_grids.get(img_id)
+            tile_entropy_grid = image_entropy_grids.get(img_id)
             if tile_entropy_grid is None:
                 ee += 1
                 img = self.get_img(img_id) if img is None else img
@@ -316,11 +280,9 @@ class SDCImageContainer:
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
                     tile_entropy_grid[idx] = gen_entropy(tile)
-
-            entropy_records.append({'ImageId': img_id, 'TileData': tile_entropy_grid})  # float
             self.tile_entropy_grids[img_id] = tile_entropy_grid
 
-            tile_issolid_grid = img_issolid_grids.get(img_id)
+            tile_issolid_grid = image_issolid_grids.get(img_id)
             if tile_issolid_grid is None:
                 ss += 1
                 img = self.get_img(img_id) if img is None else img
@@ -328,23 +290,18 @@ class SDCImageContainer:
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
                     tile_issolid_grid[idx] = get_issolid_flags(tile)
-
-            issolid_records.append({'ImageId': img_id, 'TileData': tile_issolid_grid})  # int
             self.tile_issolid_grids[img_id] = tile_issolid_grid
 
             if mm >= 5000:
-                df = pd.DataFrame().append(md5hash_records)
-                df.to_pickle(self.tile_md5hash_file)
+                self.dump_image_property(self.tile_md5hash_grids, self.tile_md5hash_file)
                 mm = 0
 
             if hh >= 5000:
-                df = pd.DataFrame().append(bm0hash_records)
-                df.to_pickle(self.tile_bm0hash_file)
+                self.dump_image_property(self.tile_bm0hash_grids, self.tile_bm0hash_file)
                 hh = 0
 
             if cc >= 5000:
-                df = pd.DataFrame().append(cm0hash_records)
-                df.to_pickle(self.tile_cm0hash_file)
+                self.dump_image_property(self.tile_cm0hash_grids, self.tile_cm0hash_file)
                 cc = 0
 
             # if gg >= 5000:
@@ -353,55 +310,43 @@ class SDCImageContainer:
             #     gg = 0
 
             if ee >= 5000:
-                df = pd.DataFrame().append(entropy_records)
-                df.to_pickle(self.tile_entropy_file)
+                self.dump_image_property(self.tile_entropy_grids, self.tile_entropy_file)
                 ee = 0
 
             if ss >= 5000:
-                df = pd.DataFrame().append(issolid_records)
-                df.to_pickle(self.tile_issolid_file)
+                self.dump_image_property(self.tile_issolid_grids, self.tile_issolid_file)
                 ss = 0
 
         if mm > 0:
-            df = pd.DataFrame().append(md5hash_records)
-            df.to_pickle(self.tile_md5hash_file)
+            self.dump_image_property(self.tile_md5hash_grids, self.tile_md5hash_file)
 
         if hh > 0:
-            df = pd.DataFrame().append(bm0hash_records)
-            df.to_pickle(self.tile_bm0hash_file)
+            self.dump_image_property(self.tile_bm0hash_grids, self.tile_bm0hash_file)
 
         if cc > 0:
-            df = pd.DataFrame().append(cm0hash_records)
-            df.to_pickle(self.tile_cm0hash_file)
+            self.dump_image_property(self.tile_cm0hash_grids, self.tile_cm0hash_file)
 
         # if gg > 0:
         #     df = pd.DataFrame().append(greycop_records)
         #     df.to_pickle(self.tile_greycop_file)
 
         if ee > 0:
-            df = pd.DataFrame().append(entropy_records)
-            df.to_pickle(self.tile_entropy_file)
+            self.dump_image_property(self.tile_entropy_grids, self.tile_entropy_file)
 
         if ss > 0:
-            df = pd.DataFrame().append(issolid_records)
-            df.to_pickle(self.tile_issolid_file)
+            self.dump_image_property(self.tile_issolid_grids, self.tile_issolid_file)
 
     def preprocess_label_properties(self):
 
-        img_shipcnt_grids = {}
-        if os.path.exists(self.tile_shipcnt_file):
-            df = pd.read_pickle(self.tile_shipcnt_file)
-            img_shipcnt_grids = {key: val for key, val in df.to_dict('split')['data']}
+        image_shipcnt_grids = self.load_image_property(self.tile_shipcnt_file)
 
         pp = 0
 
         rles = None
 
-        shipcnt_records = []
-
         img_ids = os.listdir(self.train_image_dir)
         for img_id in tqdm(sorted(img_ids)):
-            tile_shipcnt_grid = img_shipcnt_grids.get(img_id)
+            tile_shipcnt_grid = image_shipcnt_grids.get(img_id)
             if tile_shipcnt_grid is None:
                 pp += 1
                 rles = rles or get_rles(self.rle_label_file)
@@ -411,18 +356,26 @@ class SDCImageContainer:
                     for idx in range(self.n_tiles):
                         tile = self.get_tile(img, idx)
                         tile_shipcnt_grid[idx] = np.sum(tile)
-
-            shipcnt_records.append({'ImageId': img_id, 'TileData': tile_shipcnt_grid})  # int
             self.tile_shipcnt_grids[img_id] = tile_shipcnt_grid
 
             if pp >= 5000:
-                df = pd.DataFrame().append(shipcnt_records)
-                df.to_pickle(self.tile_shipcnt_file)
+                self.dump_image_property(self.tile_shipcnt_grids, self.tile_shipcnt_file)
                 pp = 0
 
         if pp > 0:
-            df = pd.DataFrame().append(shipcnt_records)
-            df.to_pickle(self.tile_shipcnt_file)
+            self.dump_image_property(self.tile_shipcnt_grids, self.tile_shipcnt_file)
+
+    def load_image_property(self, filename):
+        image_property = {}
+        if os.path.exists(filename):
+            df = pd.read_pickle(filename)
+            image_property = {key: value for key, value in df.to_dict('split')['data']}
+        return image_property
+
+    def dump_image_property(self, image_property, filename):
+        records = [{'ImageId': key, 'TileData': value} for key, value in image_property.items()]
+        df = pd.DataFrame().append(records)
+        df.to_pickle(filename)
 
     @cachedmethod(operator.attrgetter('cache'))
     def get_img(self, filename, path=None):
