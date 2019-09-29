@@ -94,7 +94,7 @@ def draw_tile_bbox(img, idx, thickness, color, img_size=None, tile_size=256):
     assert width % tile_size == 0
     ncols = width // tile_size
 
-    bbox_pt1 = np.array([idx // ncols, idx % ncols])
+    bbox_pt1 = np.array([idx % ncols, idx // ncols])
     bbox_pt2 = bbox_pt1 + 1
     bbox = np.stack([bbox_pt1, bbox_pt2]) * tile_size
     draw_bbox(img, bbox, thickness, color, img_size=img_size)
