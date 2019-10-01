@@ -202,7 +202,7 @@ class SDCImageContainer:
         self.score_funcs = {
             'bmh': self.get_bmh_scores,
             'cmh': self.get_cmh_scores,
-            'gcm': self.get_gcm_scores,
+            # 'gcm': self.get_gcm_scores,
             'enp': self.get_enp_scores,
             'pix': self.gen_pix_scores,
             'px0': self.gen_px0_scores,
@@ -411,16 +411,16 @@ class SDCImageContainer:
             scores.append(score)
         return scores
 
-    def get_gcm_scores(self, img1_id, img2_id, img1_overlap_tag):
-        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
-        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
-        scores = []
-        for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            gcm1 = self.tile_greycop_grids[img1_id][idx1]
-            gcm2 = self.tile_greycop_grids[img2_id][idx2]
-            score = relative_diff(gcm1, gcm2)
-            scores.append(score)
-        return np.array(scores)
+    # def get_gcm_scores(self, img1_id, img2_id, img1_overlap_tag):
+    #     img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
+    #     img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
+    #     scores = []
+    #     for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
+    #         gcm1 = self.tile_greycop_grids[img1_id][idx1]
+    #         gcm2 = self.tile_greycop_grids[img2_id][idx2]
+    #         score = relative_diff(gcm1, gcm2)
+    #         scores.append(score)
+    #     return np.array(scores)
 
     def get_enp_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
