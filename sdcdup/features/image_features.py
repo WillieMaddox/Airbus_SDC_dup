@@ -267,16 +267,16 @@ class SDCImageContainer:
         df = pd.DataFrame().append(records)
         df.to_pickle(filename)
 
-    def preprocess_image_properties(self, metric_ids=None):
-
+    def load_image_metrics(self, metric_ids=None):
         metric_ids = metric_ids or list(self.img_metrics_config_master)
-        metric_ids = [metric_id for metric_id in metric_ids if metric_id in self.img_metrics_config_master]
-        self.img_metrics_config = {metric_id: self.img_metrics_config_master[metric_id] for metric_id in metric_ids}
-        self.img_metrics = {metric_id: {} for metric_id in metric_ids}
-        for metric_id in metric_ids:
-            self.img_metrics[metric_id] = self.load_metrics(self.img_metrics_config[metric_id]['file'])
-        metric_counters = {metric_id: 0 for metric_id in metric_ids}
+        metric_ids = set(metric_ids) & set(self.img_metrics_config_master)
+        self.img_metrics_config = {m_id: self.img_metrics_config_master[m_id] for m_id in metric_ids}
+        self.img_metrics = {m_id: self.load_metrics(self.img_metrics_config[m_id]['file']) for m_id in metric_ids}
+        return metric_ids
 
+    def create_image_metrics(self, metric_ids=None):
+        metric_ids = self.load_image_metrics(metric_ids=metric_ids)
+        metric_counters = {metric_id: 0 for metric_id in metric_ids}
         img_ids = os.listdir(self.train_image_dir)
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -289,16 +289,16 @@ class SDCImageContainer:
             if metric_counters[metric_id] > 0:
                 self.dump_metrics(self.img_metrics[metric_id], self.img_metrics_config[metric_id]['file'])
 
-    def preprocess_label_properties(self, metric_ids=None):
-
+    def load_label_metrics(self, metric_ids=None):
         metric_ids = metric_ids or list(self.lbl_metrics_config_master)
-        metric_ids = [metric_id for metric_id in metric_ids if metric_id in self.lbl_metrics_config_master]
-        self.lbl_metrics_config = {metric_id: self.lbl_metrics_config_master[metric_id] for metric_id in metric_ids}
-        self.lbl_metrics = {metric_id: {} for metric_id in metric_ids}
-        for metric_id in metric_ids:
-            self.lbl_metrics[metric_id] = self.load_metrics(self.lbl_metrics_config[metric_id]['file'])
-        metric_counters = {metric_id: 0 for metric_id in metric_ids}
+        metric_ids = set(metric_ids) & set(self.lbl_metrics_config_master)
+        self.lbl_metrics_config = {m_id: self.lbl_metrics_config_master[m_id] for m_id in metric_ids}
+        self.lbl_metrics = {m_id: self.load_metrics(self.lbl_metrics_config[m_id]['file']) for m_id in metric_ids}
+        return metric_ids
 
+    def create_label_metrics(self, metric_ids=None):
+        metric_ids = self.load_label_metrics(metric_ids=metric_ids)
+        metric_counters = {metric_id: 0 for metric_id in metric_ids}
         img_ids = os.listdir(self.train_image_dir)
 
         for img_id in tqdm(sorted(img_ids)):
@@ -417,8 +417,8 @@ class SDCImageContainer:
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            shp1 = self.tile_shipcnt_grids[img1_id][idx1]
-            shp2 = self.tile_shipcnt_grids[img2_id][idx2]
+            shp1 = self.img_metrics['shp'][img1_id][idx1]
+            shp2 = self.img_metrics['shp'][img2_id][idx2]
             score = shp1 + shp2
             scores.append(score)
         return np.array(scores)
@@ -470,11 +470,11 @@ class SDCImageContainer:
 
     def create_overlap_matches_filename(self, n_matching_tiles):
         self.matches = []  # empty the matches container so we don't mix unequal tiles.
-        file_tag = f'{n_matching_tiles}_{self.matches_metric}_{self.matches_threshold}'
-        return os.path.join(interim_data_dir, f'overlap_matches_{file_tag}.csv')
+        file_tag = f'{self.matches_metric}_{self.matches_threshold}_{n_matching_tiles}'
+        return os.path.join(interim_data_dir, f'matches_{file_tag}.csv')
 
 
-def get_overlap_matches(sdcic, n_matching_tiles):
+def get_overlap_matches(n_matching_tiles, sdcic):
 
     overlap_matches_file = sdcic.create_overlap_matches_filename(n_matching_tiles)
 
@@ -524,24 +524,24 @@ def create_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_typ
 
     if sdcic is None:
         sdcic = SDCImageContainer()
-        sdcic.preprocess_image_properties(['md5'] + score_types + ['sol'])
+        sdcic.load_image_metrics()
         if 'shp' in score_types:
-            sdcic.preprocess_label_properties()
+            sdcic.load_label_metrics()
 
     for n_matching_tiles in n_matching_tiles_list:
-        overlap_matches = get_overlap_matches(sdcic, n_matching_tiles)
+        overlap_matches = get_overlap_matches(n_matching_tiles, sdcic)
 
         for score_type in score_types:
-            overlap_tile_scores_filename = f'overlap_{score_type}_tile_scores_{n_matching_tiles}.pkl'
-            overlap_tile_scores_file = os.path.join(interim_data_dir, overlap_tile_scores_filename)
-            if not os.path.exists(overlap_tile_scores_file):
-                overlap_tile_scores_list = []
+            overlap_scores_filename = f'overlap_{score_type}_{n_matching_tiles}.pkl'
+            overlap_scores_file = os.path.join(interim_data_dir, overlap_scores_filename)
+            if not os.path.exists(overlap_scores_file):
+                overlap_scores_list = []
 
                 for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
                     scores = sdcic.overlap_score_funcs[score_type](img1_id, img2_id, img1_overlap_tag)
-                    overlap_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
-                df = pd.DataFrame(overlap_tile_scores_list)
-                df.to_pickle(overlap_tile_scores_file)
+                    overlap_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
+                df = pd.DataFrame(overlap_scores_list)
+                df.to_pickle(overlap_scores_file)
 
 
 def load_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_types=None):
@@ -551,29 +551,27 @@ def load_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_types
 
     if sdcic is None:
         sdcic = SDCImageContainer()
-        sdcic.preprocess_image_properties(score_types)
+        sdcic.load_image_metrics(score_types)
         if 'shp' in score_types:
-            sdcic.preprocess_label_properties()
+            sdcic.load_label_metrics()
 
     Overlap_Scores = namedtuple('overlap_scores', score_types)
 
     overlap_image_maps = defaultdict(dict)
     for n_matching_tiles in n_matching_tiles_list:
-        overlap_matches = get_overlap_matches(sdcic, n_matching_tiles)
+        overlap_matches = get_overlap_matches(n_matching_tiles, sdcic)
 
         overlap_scores = {}
         for score_type in score_types:
-            overlap_tile_scores_filename = f'overlap_{score_type}_tile_scores_{n_matching_tiles}.pkl'
-            df = pd.read_pickle(os.path.join(interim_data_dir, overlap_tile_scores_filename))
+            overlap_scores_filename = f'overlap_{score_type}_{n_matching_tiles}.pkl'
+            df = pd.read_pickle(os.path.join(interim_data_dir, overlap_scores_filename))
             overlap_tile_scores = defaultdict(dict)
             for img1_id, img2_id, img1_overlap_tag, *scores in df.to_dict('split')['data']:
                 overlap_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = np.array(scores)
             overlap_scores[score_type] = overlap_tile_scores
 
         for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
-            scores_list = []
-            for score_type in score_types:
-                scores_list.append(overlap_scores[score_type][(img1_id, img2_id)][img1_overlap_tag])
+            scores_list = [overlap_scores[s][(img1_id, img2_id)][img1_overlap_tag] for s in score_types]
             overlap_image_maps[(img1_id, img2_id)][img1_overlap_tag] = Overlap_Scores(*scores_list)
 
     return overlap_image_maps

@@ -63,7 +63,7 @@ def create_dataset_from_tiles():
     :return:
     """
     sdcic = SDCImageContainer()
-    sdcic.preprocess_image_properties()
+    sdcic.load_image_metrics()
 
     img_overlap_pairs_dup_keys = []
     img_overlap_pairs_non_dup_all = []
@@ -137,7 +137,7 @@ def create_dataset_from_tiles():
 def create_dataset_from_tiles_and_truth():
 
     sdcic = SDCImageContainer()
-    sdcic.preprocess_image_properties()
+    sdcic.load_image_metrics()
 
     tpl = generate_tag_pair_lookup()
     dup_truth = load_duplicate_truth()

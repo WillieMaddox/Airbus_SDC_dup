@@ -256,15 +256,6 @@ def pad_string(x, n):
     return x_new
 
 
-def hex_to_int(hash_hex):
-    return int(hash_hex, 16)
-
-
-def int_to_hex(hash_int, hash_len):
-    hash_hex = hex(hash_int)[2:]
-    return pad_string(hash_hex, hash_len)
-
-
 def get_datetime_now(t=None, fmt='%Y_%m%d_%H%M'):
     """Return timestamp as a string; default: current time, format: YYYY_DDMM_hhmm_ss."""
     if t is None:
