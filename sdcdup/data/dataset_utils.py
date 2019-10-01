@@ -69,15 +69,15 @@ def create_dataset_from_tiles():
     img_overlap_pairs_non_dup_all = []
 
     KeyScore = namedtuple('keyscore', 'key score')
-    for img_id, tile_md5hash_grid in tqdm(sdcic.tile_md5hash_grids.items()):
+    for img_id, tile_md5hash_grid in tqdm(sdcic.img_metrics['md5'].items()):
         for idx1, tile1_md5hash in enumerate(tile_md5hash_grid):
             for idx2, tile2_md5hash in enumerate(tile_md5hash_grid):
 
                 if idx1 > idx2:
                     continue
 
-                tile1_issolid = np.all(sdcic.tile_issolid_grids[img_id][idx1] >= 0)
-                tile2_issolid = np.all(sdcic.tile_issolid_grids[img_id][idx2] >= 0)
+                tile1_issolid = np.all(sdcic.img_metrics['sol'][img_id][idx1] >= 0)
+                tile2_issolid = np.all(sdcic.img_metrics['sol'][img_id][idx2] >= 0)
 
                 if idx1 == idx2:
                     if tile1_issolid:
@@ -93,8 +93,8 @@ def create_dataset_from_tiles():
                 if tile1_issolid and tile2_issolid:
                     continue
 
-                bmh1 = sdcic.tile_bm0hash_grids[img_id][idx1]
-                bmh2 = sdcic.tile_bm0hash_grids[img_id][idx2]
+                bmh1 = sdcic.img_metrics['bmh'][img_id][idx1]
+                bmh2 = sdcic.img_metrics['bmh'][img_id][idx2]
                 score = get_hamming_distance(bmh1, bmh2, as_score=True)
 
                 if score == 256:
@@ -171,7 +171,7 @@ def create_dataset_from_tiles_and_truth():
             # If 2 tiles are the same then skip them since they are actually dups.
             # Remember a dup corresponds to the "entire" overlay.  if the overlay
             # is flagged as non-dup then at least one of the tiles is different.
-            if sdcic.tile_md5hash_grids[img1_id][idx1] == sdcic.tile_md5hash_grids[img2_id][idx2]:
+            if sdcic.img_metrics['md5'][img1_id][idx1] == sdcic.img_metrics['md5'][img2_id][idx2]:
                 continue
             img_overlap_pairs.append((img1_id, img2_id, idx1, idx2, is_dup))
             if len(img_overlap_pairs) > 2 * n_dup_tile_pairs:
@@ -354,7 +354,7 @@ class TrainDataset(data.Dataset):
             tile1 = read1(img1_id, idx1)
             tile2 = read2(img2_id, idx2)
 
-        # if is_dup == 0 and sdcic.tile_md5hash_grids[img1_id][idx1] == sdcic.tile_md5hash_grids[img2_id][idx2]:
+        # if is_dup == 0 and sdcic.img_metrics['md5'][img1_id][idx1] == sdcic.img_metrics['md5'][img2_id][idx2]:
         #     print(f'same_image, is_dup: {same_image*1}, {is_dup}')
         #     print(f'{img1_id} {idx1} -> ({self.ij[idx1][0]},{self.ij[idx1][1]})')
         #     print(f'{img2_id} {idx2} -> ({self.ij[idx2][0]},{self.ij[idx2][1]})')

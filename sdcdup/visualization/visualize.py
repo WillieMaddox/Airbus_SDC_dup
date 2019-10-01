@@ -78,7 +78,7 @@ def draw_tile_number(img, idx, value=None, img_size=768, font=cv2.FONT_HERSHEY_S
 
 
 def draw_bbox(img, bbox, thickness, color, img_size=None):
-    img_size = img_size or img.shape[0]
+    img_size = img.shape[0] if img_size is None else img_size
     offset = (thickness // 2) + 1
     bbox_pt1 = np.clip(bbox[0], offset, img_size - offset)
     bbox_pt2 = np.clip(bbox[1], offset, img_size - offset)

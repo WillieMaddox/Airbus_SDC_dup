@@ -1,6 +1,7 @@
 import os
 import hashlib
 import operator
+import concurrent.futures
 from collections import defaultdict
 from collections import namedtuple
 
@@ -42,28 +43,12 @@ def filter_duplicates(img_ids):
     return new_img_ids
 
 
-def get_rles(ship_file):
-    df = pd.read_csv(ship_file)
+def get_rles():
+    df = pd.read_csv(os.path.join(raw_data_dir, 'train_ship_segmentations_v2.csv'))
     df = pd.merge(df, df.groupby('ImageId').size().reset_index(name='cts'))
     df['cts'] = df.apply(lambda c_row: c_row['cts'] if isinstance(c_row['EncodedPixels'], str) else 0, 1)
     df = df[df['cts'] >= 1]
     return {k: list(v) for k, v in df.groupby('ImageId')['EncodedPixels']}
-
-
-def get_issolid_flags(tile):
-    issolid_flags = np.array([-1, -1, -1])
-    for chan in range(3):
-        pix = np.unique(tile[:, :, chan].flatten())
-        if len(pix) == 1:
-            issolid_flags[chan] = pix[0]
-    return issolid_flags
-
-
-def gen_entropy(tile):
-    entropy_shannon = np.zeros(3)
-    for chan in range(3):
-        entropy_shannon[chan] = shannon_entropy(tile[:, :, chan])
-    return entropy_shannon
 
 
 def gen_greycop_hash(tile, n_metrics):
@@ -148,58 +133,77 @@ def gen_greycop_hash(tile, n_metrics):
 class SDCImageContainer:
 
     def __init__(self,
-                 cache_size=10000,
-                 filename_md5hash='image_md5hash_grids.pkl',
-                 filename_bm0hash='image_bm0hash_grids.pkl',
-                 filename_cm0hash='image_cm0hash_grids.pkl',
-                 # filename_greycop='image_greycop_grids.pkl',
-                 filename_entropy='image_entropy_grids.pkl',
-                 filename_issolid='image_issolid_grids.pkl',
-                 filename_shipcnt='image_shipcnt_grids.pkl',
+                 cache_size=5000,
                  **kwargs):
 
         # This class assumes images are square and that height and width are divisible by tile_size.
         super().__init__(**kwargs)
 
         self.train_image_dir = os.path.join(raw_data_dir, 'train_768')
-        self.rle_label_file = os.path.join(raw_data_dir, 'train_ship_segmentations_v2.csv')
         self.sz = 256  # tile_size
         self.n_rows = 3
         self.n_cols = 3
         self.n_tiles = self.n_rows * self.n_cols
         self.tile_score_max = self.sz * self.sz * 3 * 255  # 3 color channels, uint8
-        self.tile_md5hash_len = 8
-        self.tile_md5hash_dtype = f'<U{self.tile_md5hash_len}'
-        self.tile_md5hash_grids = {}
-        self.tile_md5hash_file = os.path.join(interim_data_dir, filename_md5hash)
-        self.tile_bm0hash_len = 32
-        self.tile_bm0hash_dtype = np.uint8
-        self.tile_bm0hash_grids = {}
-        self.tile_bm0hash_file = os.path.join(interim_data_dir, filename_bm0hash)
-        self.tile_cm0hash_len = 42
-        self.tile_cm0hash_dtype = np.float
-        self.tile_cm0hash_grids = {}
-        self.tile_cm0hash_file = os.path.join(interim_data_dir, filename_cm0hash)
+
+        self.img_metrics_config_master = {
+            'md5': {
+                'len': 8,
+                'dtype': f'<U8',
+                'file': os.path.join(interim_data_dir, 'image_md5.pkl'),
+                'shape': (self.n_tiles, ),
+                'func': self.get_md5hash},
+            'bmh': {
+                'len': 32,
+                'dtype': np.uint8,
+                'file': os.path.join(interim_data_dir, 'image_bmh.pkl'),
+                'shape': (self.n_tiles, 32),
+                'func': self.get_bm0hash},
+            'cmh': {
+                'len': 42,
+                'dtype': np.float,
+                'file': os.path.join(interim_data_dir, 'image_cmh.pkl'),
+                'shape': (self.n_tiles, 42),
+                'func': self.get_cm0hash},
+            'enp': {
+                'len': 3,
+                'dtype': np.float,
+                'file': os.path.join(interim_data_dir, 'image_enp.pkl'),
+                'shape': (self.n_tiles, 3),
+                'func': self.get_entropy},
+            'sol': {
+                'len': 3,
+                'dtype': np.int,
+                'file': os.path.join(interim_data_dir, 'image_sol.pkl'),
+                'shape': (self.n_tiles, 3),
+                'func': self.get_issolid}
+        }
+        self.img_metrics_config = None
+        self.img_metrics = None
+
         # self.tile_greycop_len = 5
         # self.tile_greycop_dtype = np.float
         # self.tile_greycop_grids = {}
         # self.tile_greycop_file = os.path.join(interim_data_dir, filename_greycop)
-        self.tile_entropy_len = 3
-        self.tile_entropy_dtype = np.float
-        self.tile_entropy_grids = {}
-        self.tile_entropy_file = os.path.join(interim_data_dir, filename_entropy)
-        self.tile_issolid_len = 3
-        self.tile_issolid_dtype = np.int
-        self.tile_issolid_grids = {}
-        self.tile_issolid_file = os.path.join(interim_data_dir, filename_issolid)
-        self.tile_shipcnt_dtype = np.int
-        self.tile_shipcnt_grids = {}
-        self.tile_shipcnt_file = os.path.join(interim_data_dir, filename_shipcnt)
+
+        self.lbl_metrics_config_master = {
+            'shp': {
+                'len': 3,
+                'dtype': np.int,
+                'file': os.path.join(interim_data_dir, 'image_shp.pkl'),
+                'shape': (self.n_tiles, ),
+                'func': self.get_shipcnt,
+                'counter': 0}
+        }
+        self.lbl_metrics_config = None
+        self.lbl_metrics = None
+        self._rles = None
+
         self.matches = []
         self.matches_metric = 'bmh'
         self.matches_threshold = 0.90234375  # 1 - ((5 + 20) / 256)
         self.cache = LRUCache(maxsize=cache_size)
-        self.score_funcs = {
+        self.overlap_score_funcs = {
             'bmh': self.get_bmh_scores,
             'cmh': self.get_cmh_scores,
             # 'gcm': self.get_gcm_scores,
@@ -209,173 +213,115 @@ class SDCImageContainer:
             'shp': self.gen_shp_scores,
         }
 
-    def preprocess_image_properties(self):
+    def get_md5hash(self, tile):
+        return hashlib.md5(tile.tobytes()).hexdigest()[:8]
 
-        image_md5hash_grids = self.load_image_property(self.tile_md5hash_file)
-        image_bm0hash_grids = self.load_image_property(self.tile_bm0hash_file)
-        image_cm0hash_grids = self.load_image_property(self.tile_cm0hash_file)
-        # image_greycop_grids = self.load_image_property(self.tile_greycop_file)
-        image_entropy_grids = self.load_image_property(self.tile_entropy_file)
-        image_issolid_grids = self.load_image_property(self.tile_issolid_file)
+    def get_bm0hash(self, tile):
+        return img_hash.blockMeanHash(tile, mode=0)[0]
 
-        mm = 0
-        hh = 0
-        cc = 0
-        # gg = 0
-        ee = 0
-        ss = 0
+    def get_cm0hash(self, tile):
+        return img_hash.colorMomentHash(tile)[0]
 
-        img_ids = os.listdir(self.train_image_dir)
-        for img_id in tqdm(sorted(img_ids)):
+    def get_issolid(self, tile):
+        issolid_flags = np.array([-1, -1, -1])
+        for chan in range(3):
+            pix = np.unique(tile[:, :, chan].flatten())
+            if len(pix) == 1:
+                issolid_flags[chan] = pix[0]
+        return issolid_flags
 
-            img = None
+    def get_entropy(self, tile):
+        entropy_shannon = np.zeros(3)
+        for chan in range(3):
+            entropy_shannon[chan] = shannon_entropy(tile[:, :, chan])
+        return entropy_shannon
 
-            tile_md5hash_grid = image_md5hash_grids.get(img_id)
-            if tile_md5hash_grid is None:
-                mm += 1
-                img = self.get_img(img_id)
-                tile_md5hash_grid = np.zeros(self.n_tiles, dtype=self.tile_md5hash_dtype)
-                for idx in range(self.n_tiles):
-                    tile = self.get_tile(img, idx)
-                    tile_md5hash_grid[idx] = hashlib.md5(tile.tobytes()).hexdigest()[:self.tile_md5hash_len]
-            self.tile_md5hash_grids[img_id] = tile_md5hash_grid
+    def get_shipcnt(self, tile):
+        return np.sum(tile)
 
-            tile_bm0hash_grid = image_bm0hash_grids.get(img_id)
-            if tile_bm0hash_grid is None:
-                hh += 1
-                img = self.get_img(img_id) if img is None else img
-                tile_bm0hash_grid = np.zeros((self.n_tiles, self.tile_bm0hash_len), dtype=self.tile_bm0hash_dtype)
-                for idx in range(self.n_tiles):
-                    tile = self.get_tile(img, idx)
-                    tile_bm0hash_grid[idx] = img_hash.blockMeanHash(tile, mode=0)[0]
-            self.tile_bm0hash_grids[img_id] = tile_bm0hash_grid
+    def generate_image_metric(self, img_id, metric_config):
+        img = self.get_img(img_id)
+        metric_array = np.zeros(metric_config['shape'], dtype=metric_config['dtype'])
+        for idx in range(self.n_tiles):
+            tile = self.get_tile(img, idx)
+            metric_array[idx] = metric_config['func'](tile)
+        return metric_array
 
-            tile_cm0hash_grid = image_cm0hash_grids.get(img_id)
-            if tile_cm0hash_grid is None:
-                cc += 1
-                img = self.get_img(img_id) if img is None else img
-                tile_cm0hash_grid = np.zeros((self.n_tiles, self.tile_cm0hash_len), dtype=self.tile_cm0hash_dtype)
-                for idx in range(self.n_tiles):
-                    tile = self.get_tile(img, idx)
-                    tile_cm0hash_grid[idx] = img_hash.colorMomentHash(tile)[0]
-            self.tile_cm0hash_grids[img_id] = tile_cm0hash_grid
+    def process_image(self, img_id):
+        img_metric = {}
+        for metric_id, metric_config in self.img_metrics_config.items():
+            if img_id in self.img_metrics[metric_id]:
+                continue
+            img_metric[metric_id] = self.generate_image_metric(img_id, metric_config)
+        return img_metric
 
-            # tile_greycop_grid = image_greycop_grids.get(img_id)
-            # if tile_greycop_grid is None:
-            #     gg += 1
-            #     img = self.get_img(img_id) if img is None else img
-            #     tile_greycop_grid = np.zeros((self.n_tiles, self.tile_greycop_len), dtype=self.tile_greycop_dtype)
-            #     for idx in range(self.n_tiles):
-            #         tile = self.get_tile(img, idx)
-            #         tile_greycop_grid[idx] = gen_greycop_hash(tile, self.tile_greycop_len)
-            #
-            # greycop_records.append({'ImageId': img_id, 'TileData': tile_greycop_grid})  # float
-            # self.tile_greycop_grids[img_id] = tile_greycop_grid
-
-            tile_entropy_grid = image_entropy_grids.get(img_id)
-            if tile_entropy_grid is None:
-                ee += 1
-                img = self.get_img(img_id) if img is None else img
-                tile_entropy_grid = np.zeros((self.n_tiles, self.tile_entropy_len), dtype=self.tile_entropy_dtype)
-                for idx in range(self.n_tiles):
-                    tile = self.get_tile(img, idx)
-                    tile_entropy_grid[idx] = gen_entropy(tile)
-            self.tile_entropy_grids[img_id] = tile_entropy_grid
-
-            tile_issolid_grid = image_issolid_grids.get(img_id)
-            if tile_issolid_grid is None:
-                ss += 1
-                img = self.get_img(img_id) if img is None else img
-                tile_issolid_grid = np.zeros((self.n_tiles, self.tile_issolid_len), dtype=self.tile_issolid_dtype)
-                for idx in range(self.n_tiles):
-                    tile = self.get_tile(img, idx)
-                    tile_issolid_grid[idx] = get_issolid_flags(tile)
-            self.tile_issolid_grids[img_id] = tile_issolid_grid
-
-            if mm >= 5000:
-                self.dump_image_property(self.tile_md5hash_grids, self.tile_md5hash_file)
-                mm = 0
-
-            if hh >= 5000:
-                self.dump_image_property(self.tile_bm0hash_grids, self.tile_bm0hash_file)
-                hh = 0
-
-            if cc >= 5000:
-                self.dump_image_property(self.tile_cm0hash_grids, self.tile_cm0hash_file)
-                cc = 0
-
-            # if gg >= 5000:
-            #     df = pd.DataFrame().append(greycop_records)
-            #     df.to_pickle(self.tile_greycop_file)
-            #     gg = 0
-
-            if ee >= 5000:
-                self.dump_image_property(self.tile_entropy_grids, self.tile_entropy_file)
-                ee = 0
-
-            if ss >= 5000:
-                self.dump_image_property(self.tile_issolid_grids, self.tile_issolid_file)
-                ss = 0
-
-        if mm > 0:
-            self.dump_image_property(self.tile_md5hash_grids, self.tile_md5hash_file)
-
-        if hh > 0:
-            self.dump_image_property(self.tile_bm0hash_grids, self.tile_bm0hash_file)
-
-        if cc > 0:
-            self.dump_image_property(self.tile_cm0hash_grids, self.tile_cm0hash_file)
-
-        # if gg > 0:
-        #     df = pd.DataFrame().append(greycop_records)
-        #     df.to_pickle(self.tile_greycop_file)
-
-        if ee > 0:
-            self.dump_image_property(self.tile_entropy_grids, self.tile_entropy_file)
-
-        if ss > 0:
-            self.dump_image_property(self.tile_issolid_grids, self.tile_issolid_file)
-
-    def preprocess_label_properties(self):
-
-        image_shipcnt_grids = self.load_image_property(self.tile_shipcnt_file)
-
-        pp = 0
-
-        rles = None
-
-        img_ids = os.listdir(self.train_image_dir)
-        for img_id in tqdm(sorted(img_ids)):
-            tile_shipcnt_grid = image_shipcnt_grids.get(img_id)
-            if tile_shipcnt_grid is None:
-                pp += 1
-                rles = rles or get_rles(self.rle_label_file)
-                tile_shipcnt_grid = np.zeros(self.n_tiles, dtype=np.int)
-                if img_id in rles:
-                    img = rle_to_full_mask(rles[img_id])
-                    for idx in range(self.n_tiles):
-                        tile = self.get_tile(img, idx)
-                        tile_shipcnt_grid[idx] = np.sum(tile)
-            self.tile_shipcnt_grids[img_id] = tile_shipcnt_grid
-
-            if pp >= 5000:
-                self.dump_image_property(self.tile_shipcnt_grids, self.tile_shipcnt_file)
-                pp = 0
-
-        if pp > 0:
-            self.dump_image_property(self.tile_shipcnt_grids, self.tile_shipcnt_file)
-
-    def load_image_property(self, filename):
-        image_property = {}
+    def load_metrics(self, filename):
+        img_metrics = {}
         if os.path.exists(filename):
             df = pd.read_pickle(filename)
-            image_property = {key: value for key, value in df.to_dict('split')['data']}
-        return image_property
+            img_metrics = {key: value for key, value in df.to_dict('split')['data']}
+        return img_metrics
 
-    def dump_image_property(self, image_property, filename):
-        records = [{'ImageId': key, 'TileData': value} for key, value in image_property.items()]
+    def dump_metrics(self, metrics, filename):
+        records = [{'ImageId': key, 'TileData': value} for key, value in sorted(metrics.items())]
         df = pd.DataFrame().append(records)
         df.to_pickle(filename)
+
+    def preprocess_image_properties(self, metric_ids=None):
+
+        metric_ids = metric_ids or list(self.img_metrics_config_master)
+        metric_ids = [metric_id for metric_id in metric_ids if metric_id in self.img_metrics_config_master]
+        self.img_metrics_config = {metric_id: self.img_metrics_config_master[metric_id] for metric_id in metric_ids}
+        self.img_metrics = {metric_id: {} for metric_id in metric_ids}
+        for metric_id in metric_ids:
+            self.img_metrics[metric_id] = self.load_metrics(self.img_metrics_config[metric_id]['file'])
+        metric_counters = {metric_id: 0 for metric_id in metric_ids}
+
+        img_ids = os.listdir(self.train_image_dir)
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for img_id, img_metrics in tqdm(zip(img_ids, executor.map(self.process_image, img_ids, chunksize=48)), total=len(img_ids)):
+                for metric_id, metric_array in img_metrics.items():
+                    self.img_metrics[metric_id][img_id] = metric_array
+                    metric_counters[metric_id] += 1
+
+        for metric_id in metric_ids:
+            if metric_counters[metric_id] > 0:
+                self.dump_metrics(self.img_metrics[metric_id], self.img_metrics_config[metric_id]['file'])
+
+    def preprocess_label_properties(self, metric_ids=None):
+
+        metric_ids = metric_ids or list(self.lbl_metrics_config_master)
+        metric_ids = [metric_id for metric_id in metric_ids if metric_id in self.lbl_metrics_config_master]
+        self.lbl_metrics_config = {metric_id: self.lbl_metrics_config_master[metric_id] for metric_id in metric_ids}
+        self.lbl_metrics = {metric_id: {} for metric_id in metric_ids}
+        for metric_id in metric_ids:
+            self.lbl_metrics[metric_id] = self.load_metrics(self.lbl_metrics_config[metric_id]['file'])
+        metric_counters = {metric_id: 0 for metric_id in metric_ids}
+
+        img_ids = os.listdir(self.train_image_dir)
+
+        for img_id in tqdm(sorted(img_ids)):
+
+            if img_id in self.lbl_metrics['shp']:
+                continue
+
+            metric_array = np.zeros(self.lbl_metrics_config['shape'], dtype=self.lbl_metrics_config['dtype'])
+            if img_id in self.rles:
+                img = rle_to_full_mask(self.rles[img_id])
+                for idx in range(self.n_tiles):
+                    tile = self.get_tile(img, idx)
+                    metric_array[idx] = self.lbl_metrics_config['shp']['func'](tile)
+            self.lbl_metrics['shp'][img_id] = metric_array
+            metric_counters['shp'] += 1
+
+            if metric_counters['shp'] >= 5000:
+                self.dump_metrics(self.lbl_metrics['shp'], self.lbl_metrics_config['shp']['file'])
+                metric_counters['shp'] = 0
+
+        for metric_id in metric_ids:
+            if metric_counters[metric_id] > 0:
+                self.dump_metrics(self.img_metrics[metric_id], self.img_metrics_config[metric_id]['file'])
 
     @cachedmethod(operator.attrgetter('cache'))
     def get_img(self, filename, path=None):
@@ -389,13 +335,19 @@ class SDCImageContainer:
         i, j = idx2ijpair[idx]
         return self._get_tile(img, i, j)
 
+    @property
+    def rles(self):
+        if self._rles is None:
+            self._rles = get_rles()
+        return self._rles
+
     def get_bmh_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            bmh1 = self.tile_bm0hash_grids[img1_id][idx1]
-            bmh2 = self.tile_bm0hash_grids[img2_id][idx2]
+            bmh1 = self.img_metrics['bmh'][img1_id][idx1]
+            bmh2 = self.img_metrics['bmh'][img2_id][idx2]
             score = get_hamming_distance(bmh1, bmh2, normalize=True, as_score=True)
             scores.append(score)
         return scores
@@ -405,8 +357,8 @@ class SDCImageContainer:
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            cmh1 = self.tile_cm0hash_grids[img1_id][idx1]
-            cmh2 = self.tile_cm0hash_grids[img2_id][idx2]
+            cmh1 = self.img_metrics['cmh'][img1_id][idx1]
+            cmh2 = self.img_metrics['cmh'][img2_id][idx2]
             score = np.exp(-np.linalg.norm(cmh1 - cmh2))
             scores.append(score)
         return scores
@@ -427,8 +379,8 @@ class SDCImageContainer:
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            enp1 = self.tile_entropy_grids[img1_id][idx1]
-            enp2 = self.tile_entropy_grids[img2_id][idx2]
+            enp1 = self.img_metrics['enp'][img1_id][idx1]
+            enp2 = self.img_metrics['enp'][img2_id][idx2]
             score = np.exp(-np.linalg.norm(enp1 - enp2))
             # score = np.mean((enp1 + enp2) / 2.0)
             scores.append(score)
@@ -473,7 +425,7 @@ class SDCImageContainer:
 
     def find_valid_pairings_by_hash(self, hash_id, sorted_hash_dict, level_overlap_tags):
         """
-        This currently only works with the hashes stored in self.tile_bm0hash_grids
+        This currently only works with the hashes stored in self.img_metrics['bmh']
 
         :param hash_id:
         :param sorted_hash_dict:
@@ -484,7 +436,7 @@ class SDCImageContainer:
 
         hamming_distance_lookup = {}
         for img_id in img_list:
-            hamming_list = [get_hamming_distance(bmh0, hash_id) for bmh0 in self.tile_bm0hash_grids[img_id]]
+            hamming_list = [get_hamming_distance(bmh0, hash_id) for bmh0 in self.img_metrics['bmh'][img_id]]
             hamming_distance_lookup[img_id] = np.array(hamming_list)
 
         for i, img1_id in enumerate(img_list):
@@ -538,7 +490,7 @@ def get_overlap_matches(sdcic, n_matching_tiles):
 
         hash_dict = defaultdict(set)
         for img_id in tqdm(img_ids):
-            for h in sdcic.tile_bm0hash_grids[img_id]:
+            for h in sdcic.img_metrics['bmh'][img_id]:
                 hash_dict[tuple(h)].add(img_id)
 
         sorted_hash_dict = {}
@@ -568,11 +520,11 @@ def create_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_typ
     # shp: Number of pixels that belong to ships:
 
     if score_types is None:
-        score_types = ['bmh', 'pix', 'px0']
+        score_types = ['bmh', 'cmh', 'enp', 'pix', 'px0', 'shp']
 
     if sdcic is None:
         sdcic = SDCImageContainer()
-        sdcic.preprocess_image_properties()
+        sdcic.preprocess_image_properties(['md5'] + score_types + ['sol'])
         if 'shp' in score_types:
             sdcic.preprocess_label_properties()
 
@@ -586,7 +538,7 @@ def create_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_typ
                 overlap_tile_scores_list = []
 
                 for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
-                    scores = sdcic.score_funcs[score_type](img1_id, img2_id, img1_overlap_tag)
+                    scores = sdcic.overlap_score_funcs[score_type](img1_id, img2_id, img1_overlap_tag)
                     overlap_tile_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
                 df = pd.DataFrame(overlap_tile_scores_list)
                 df.to_pickle(overlap_tile_scores_file)
@@ -595,11 +547,11 @@ def create_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_typ
 def load_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_types=None):
 
     if score_types is None:
-        score_types = ['bmh', 'cmh', 'pix', 'px0', 'shp']
+        score_types = ['bmh', 'cmh', 'enp', 'pix', 'px0', 'shp']
 
     if sdcic is None:
         sdcic = SDCImageContainer()
-        sdcic.preprocess_image_properties()
+        sdcic.preprocess_image_properties(score_types)
         if 'shp' in score_types:
             sdcic.preprocess_label_properties()
 
@@ -637,7 +589,7 @@ if __name__ == '__main__':
     # n_matching_tiles = 1
 
     n_matching_tiles_list = [9, 6, 4, 3, 2, 1]
-    score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
+    score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0')
     create_image_overlap_properties(n_matching_tiles_list, score_types=score_types)
     # overlap_image_maps = load_image_overlap_properties(n_matching_tiles_list)
 
