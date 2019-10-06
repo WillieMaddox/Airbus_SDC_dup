@@ -280,8 +280,8 @@ class SDCImageContainer:
         metric_counters = {metric_id: 0 for metric_id in metric_ids}
         img_ids = os.listdir(self.train_image_dir)
 
-        with ThreadPoolExecutor() as executor:
-            for img_id, img_metrics in tqdm(zip(img_ids, executor.map(self.process_image, img_ids, chunksize=48)), total=len(img_ids)):
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            for img_id, img_metrics in tqdm(zip(img_ids, executor.map(self.process_image, img_ids)), total=len(img_ids)):
                 for metric_id, metric_array in img_metrics.items():
                     self.img_metrics[metric_id][img_id] = metric_array
                     metric_counters[metric_id] += 1
@@ -482,7 +482,7 @@ class SDCImageContainer:
         return matches
 
     def create_overlap_matches_filename(self, n_matching_tiles):
-        file_tag = f'{self.matches_metric}_{self.matches_threshold}_{n_matching_tiles}'
+        file_tag = f'{n_matching_tiles}_{self.matches_metric}_{self.matches_threshold}'
         return os.path.join(interim_data_dir, f'matches_{file_tag}.csv')
 
     @property
@@ -554,7 +554,7 @@ def create_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_typ
         sdcic.return_args_with_overlap_scores = True
 
         for score_type in score_types:
-            overlap_scores_filename = f'overlap_{score_type}_{n_matching_tiles}.pkl'
+            overlap_scores_filename = f'overlap_{n_matching_tiles}_{score_type}.pkl'
             overlap_scores_file = os.path.join(interim_data_dir, overlap_scores_filename)
             if os.path.exists(overlap_scores_file):
                 continue
@@ -595,7 +595,7 @@ def load_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_types
 
         overlap_scores = {}
         for score_type in score_types:
-            overlap_scores_filename = f'overlap_{score_type}_{n_matching_tiles}.pkl'
+            overlap_scores_filename = f'overlap_{n_matching_tiles}_{score_type}.pkl'
             df = pd.read_pickle(os.path.join(interim_data_dir, overlap_scores_filename))
             overlap_tile_scores = defaultdict(dict)
             for img1_id, img2_id, img1_overlap_tag, *scores in df.to_dict('split')['data']:
@@ -621,6 +621,6 @@ if __name__ == '__main__':
     n_matching_tiles_list = [9, 6, 4, 3, 2, 1]
     score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0')
     create_image_overlap_properties(n_matching_tiles_list, score_types=score_types)
-    # overlap_image_maps = load_image_overlap_properties(n_matching_tiles_list)
+    # overlap_image_maps = load_image_overlap_properties(n_matching_tiles_list, score_types=score_types)
 
     print('done')
