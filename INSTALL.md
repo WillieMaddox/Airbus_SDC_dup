@@ -57,11 +57,12 @@ You can extract the dataset to wherever you like.  I extracted it to `data/raw/t
 
 Once the raw dataset has been downloaded and extracted, run the image preprocessing scripts.
 
-First generate the 256 x 256 image tiles:
+First generate the 256 x 256 image tiles.  You can do this by running a script,
 ```shell script
 $ make data 
 ``` 
-Note: The `data/processed/train_256` folder takes up ??? GB of disk space. It takes approx 30 min to run on my dev system.  YMMV.
+or by running the provided jupyter [notebook](notebooks/create_256_tiles.ipynb).
+Note: Make sure you have at least 32 GB free to store the tiles. The data will be saved to `data/processed/train_256`. It takes approx 30 min to run on my dev system.  YMMV.
 
 Next generate the image feature metadata:
 ```shell script
