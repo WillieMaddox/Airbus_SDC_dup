@@ -505,7 +505,6 @@ class SDCImageContainer:
         return self._sorted_hash_dict
 
 
-
 def get_overlap_matches(n_matching_tiles, sdcic):
 
     overlap_matches_file = sdcic.create_overlap_matches_filename(n_matching_tiles)

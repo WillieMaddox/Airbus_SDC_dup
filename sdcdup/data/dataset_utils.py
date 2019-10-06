@@ -1,7 +1,7 @@
 import operator
 import os
 from collections import namedtuple
-
+from concurrent.futures import ThreadPoolExecutor
 import cv2
 import numpy as np
 import pandas as pd
@@ -27,21 +27,26 @@ from sdcdup.utils import train_tile_dir
 from sdcdup.features import SDCImageContainer
 
 
+def write_256_tile(img_id):
+    img = None
+    filebase, fileext = img_id.split('.')
+    for idx in range(9):
+        outfile = os.path.join(train_tile_dir, f'{filebase}_{idx}.{fileext}')
+        if os.path.exists(outfile):
+            continue
+        if img is None:
+            img = cv2.imread(os.path.join(train_image_dir, img_id))
+        tile = get_tile(img, idx)
+        cv2.imwrite(outfile, tile)
+
+
 def create_256_tiles(train_image_dir, train_tile_dir):
-    n_tiles = 9
     os.makedirs(train_tile_dir, exist_ok=True)
     img_ids = os.listdir(train_image_dir)
-    for img_id in tqdm(img_ids):
-        img = None
-        filebase, fileext = img_id.split('.')
-        for idx in range(n_tiles):
-            outfile = os.path.join(train_tile_dir, f'{filebase}_{idx}.{fileext}')
-            if os.path.exists(outfile):
-                continue
-            if img is None:
-                img = cv2.imread(os.path.join(train_image_dir, img_id))
-            tile = get_tile(img, idx)
-            cv2.imwrite(outfile, tile)
+
+    with ThreadPoolExecutor(max_workers=16) as executor:
+        for _ in tqdm(executor.map(write_256_tile, img_ids), total=len(img_ids)):
+            pass
 
 
 def create_dataset_from_tiles():

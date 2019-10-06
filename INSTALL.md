@@ -62,7 +62,8 @@ First generate the 256 x 256 image tiles.  You can do this by running a script,
 $ make data 
 ``` 
 or by running the provided jupyter [notebook](notebooks/create_256_tiles.ipynb).
-Note: Make sure you have at least 32 GB free to store the tiles. The data will be saved to `data/processed/train_256`. It takes approx 30 min to run on my dev system.  YMMV.
+Note: Make sure you have at least 32 GB free to store the tiles. The data will be saved to `data/processed/train_256`. 
+It took me about 5 minutes to process all tiles using threading (and over 30 min without threading).
 
 Next generate the image feature metadata:
 ```shell script
