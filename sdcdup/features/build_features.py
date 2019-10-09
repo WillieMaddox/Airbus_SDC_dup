@@ -8,7 +8,7 @@ from dotenv import find_dotenv, load_dotenv
 from sdcdup.features import create_image_overlap_properties
 
 allowed_n_matching_tiles = (9, 6, 4, 3, 2, 1)
-allowed_score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
+allowed_score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0')
 
 
 @click.command()
@@ -29,7 +29,7 @@ def main(n_matching_tiles_str, score_types):
     for score_type in score_types:
         assert score_type in allowed_score_types
 
-    create_image_overlap_properties(n_matching_tiles_list, score_types)
+    create_image_overlap_properties(n_matching_tiles_list, score_types=score_types)
 
 
 if __name__ == '__main__':

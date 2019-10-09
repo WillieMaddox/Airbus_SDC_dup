@@ -63,13 +63,14 @@ $ make data
 ``` 
 or by running the provided jupyter [notebook](notebooks/create_256_tiles.ipynb).
 Note: Make sure you have at least 32 GB free to store the tiles. The data will be saved to `data/processed/train_256`. 
-It took me about 5 minutes to process all tiles using threading (and over 30 min without threading).
+It took me about 5 minutes to process all tiles using threading (over 30 min without threading).
 
 Next generate the image feature metadata:
 ```shell script
 $ make features
 ```
-Note: The `data/interim` folder takes up ??? GB of disk space. It takes approx 2 hrs to run on my dev system.  YMMV.
+Note: Make sure you have at least 1 GB free to store the interim data.  The data will be saved to `data/interim`. 
+With threading, tt takes approx 2.5 hrs to run on my dev system; 24 hours without threading.  YMMV.
 
 The newly generated files will be placed into the interim and processed directories.
 Once complete, your directory structure should look like the following:
@@ -83,22 +84,22 @@ Once complete, your directory structure should look like the following:
 │       ├── image_sol.pkl
 │       ├── image_md5.pkl
 │       ├── image_shp.pkl
-│       ├── matches_bmh_0.90234375_1.csv
-│       ├── matches_bmh_0.90234375_2.csv
-│       ├── matches_bmh_0.90234375_3.csv
-│       ├── matches_bmh_0.90234375_4.csv
-│       ├── matches_bmh_0.90234375_6.csv
-│       ├── matches_bmh_0.90234375_9.csv
-│       ├── overlap_bmh_1.pkl
-│       ├── overlap_bmh_2.pkl
-│       ├── overlap_bmh_3.pkl
-│       ├── overlap_bmh_4.pkl
-│       ├── overlap_bmh_6.pkl
-│       ├── overlap_bmh_9.pkl
-│       ├── overlap_cmh_1.pkl
-│       ├── overlap_cmh_2.pkl
+│       ├── matches_1_bmh_0.9.csv
+│       ├── matches_2_bmh_0.9.csv
+│       ├── matches_3_bmh_0.9.csv
+│       ├── matches_4_bmh_0.9.csv
+│       ├── matches_6_bmh_0.9.csv
+│       ├── matches_9_bmh_0.9.csv
+│       ├── overlap_1_bmh.pkl
+│       ├── overlap_2_bmh.pkl
+│       ├── overlap_3_bmh.pkl
+│       ├── overlap_4_bmh.pkl
+│       ├── overlap_6_bmh.pkl
+│       ├── overlap_9_bmh.pkl
+│       ├── overlap_1_cmh.pkl
+│       ├── overlap_2_cmh.pkl
 │       ├── ...
-│       └── overlap_shp_9.pkl
+│       └── overlap_9_shp.pkl
 │   ├── processed
 │       └── train_256
 │           ├── 00003e153_0.jpg

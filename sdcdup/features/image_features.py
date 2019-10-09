@@ -542,9 +542,9 @@ def create_image_overlap_properties(n_matching_tiles_list, sdcic=None, score_typ
 
     if sdcic is None:
         sdcic = SDCImageContainer()
-        sdcic.load_image_metrics()
+        sdcic.create_image_metrics()
         if 'shp' in score_types:
-            sdcic.load_label_metrics()
+            sdcic.create_label_metrics()
 
     for n_matching_tiles in n_matching_tiles_list:
         overlap_matches = get_overlap_matches(n_matching_tiles, sdcic)
