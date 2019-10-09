@@ -324,7 +324,7 @@ class SDCImageContainer:
             if metric_counters[metric_id] > 0:
                 self.dump_metrics(self.img_metrics[metric_id], self.img_metrics_config[metric_id]['file'])
 
-    @cachedmethod(operator.attrgetter('cache'))
+    # @cachedmethod(operator.attrgetter('cache'))
     def get_img(self, filename, path=None):
         path = self.train_image_dir if path is None else path
         return cv2.imread(os.path.join(path, filename))
