@@ -12,8 +12,8 @@
   - [x] ~~Create a new SDCTile class that represents a single tile from SDCImage.~~ Cancelled. Too slow.
 * Performance
   - [ ] Profile PyTorch prediction pipeline in PyCharm.
-  - [ ] Parallelize the creation of image_metrics.
-  - [ ] Parallelize the creation of overlap_scores.
+  - [x] Parallelize the creation of image_metrics.
+  - [x] Parallelize the creation of overlap_scores.
 * Write unit tests
   - [ ] ...for most everything in utils.py
   - [ ] Use design pattern: Each test should have 3 parts: Arrange, Act, Assert
