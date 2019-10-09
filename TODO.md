@@ -1,8 +1,8 @@
 # TODO
 
 * Documentation
-  - [ ] Add links to papers.
-  - [ ] Add links to project files.
+  - [x] Add links to papers.
+  - [x] Add links to project files.
   - [x] Make new notebook showing differences in cropped images that result from jpeg compression.
 * Organization and Refactoring
   - [ ] Move all plotting functions to visualize.py
@@ -32,9 +32,8 @@
   - [ ] image hashes
   - [ ] image entropy
   - [ ] image histograms
-  - [ ] grey-level co-occurance matrix
+  - [ ] grey-level co-occurrence matrix
   - [ ] ship overlap
 * Dup Tool
   - [ ] Upgrade the dup_tool to use Bokeh or Plotly for interactions and rendering.
   - [ ] Handle StopIteration exception.
-

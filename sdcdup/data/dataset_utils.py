@@ -100,9 +100,9 @@ def create_dataset_from_tiles():
 
                 bmh1 = sdcic.img_metrics['bmh'][img_id][idx1]
                 bmh2 = sdcic.img_metrics['bmh'][img_id][idx2]
-                score = get_hamming_distance(bmh1, bmh2, as_score=True)
+                score = get_hamming_distance(bmh1, bmh2, normalize=True, as_score=True)
 
-                if score == 256:
+                if score == 1:
                     tile1 = sdcic.get_tile(sdcic.get_img(img_id), idx1)
                     tile2 = sdcic.get_tile(sdcic.get_img(img_id), idx2)
                     tile3 = fuzzy_join(tile1, tile2)
@@ -111,7 +111,7 @@ def create_dataset_from_tiles():
                         # skip all the near solid (i.e. blue edge) tiles.
                         continue
 
-                img_overlap_pairs_non_dup_all.append(KeyScore((img_id, img_id, idx1, idx2, 0), score/256))
+                img_overlap_pairs_non_dup_all.append(KeyScore((img_id, img_id, idx1, idx2, 0), score))
 
     img_overlap_pairs_non_dup_keys_sorted = []
     for candidate in tqdm(sorted(img_overlap_pairs_non_dup_all, key=operator.attrgetter('score'), reverse=True)):

@@ -201,7 +201,7 @@ class SDCImageContainer:
         self._sorted_hash_dict = None
 
         self.matches_metric = 'bmh'
-        self.matches_threshold = 0.90234375  # 1 - ((5 + 20) / 256)
+        self.matches_threshold = 0.9  # ~= 1 - ((5 + 20) / 256)
         self.cache = LRUCache(maxsize=cache_size)
         self.return_args_with_overlap_scores = False
         self.overlap_score_funcs = {
@@ -446,18 +446,17 @@ class SDCImageContainer:
         :return:
         """
 
-        hamming_distance_lookup = {}
+        hamming_lookup = {}
         for img_id in img_list:
-            hamming_list = [get_hamming_distance(bmh0, hash_id) for bmh0 in self.img_metrics['bmh'][img_id]]
-            hamming_distance_lookup[img_id] = np.array(hamming_list)
+            hamming_lookup[img_id] = [get_hamming_distance(bmh0, hash_id, normalize=True, as_score=True) for bmh0 in self.img_metrics['bmh'][img_id]]
 
         matches = []
-        for i, img1_id in enumerate(img_list):
-            tiles1 = [idx for idx, bmhd in enumerate(hamming_distance_lookup[img1_id]) if bmhd <= 5]
-            for j, img2_id in enumerate(img_list):
-                if j <= i:
+        for img1_id in img_list:
+            tiles1 = [idx for idx, bmhd in enumerate(hamming_lookup[img1_id]) if bmhd >= self.matches_threshold]
+            for img2_id in img_list:
+                if img2_id <= img1_id:
                     continue
-                tiles2 = [idx for idx, bmhd in enumerate(hamming_distance_lookup[img2_id]) if bmhd <= 5]
+                tiles2 = [idx for idx, bmhd in enumerate(hamming_lookup[img2_id]) if bmhd >= self.matches_threshold]
 
                 # create a set of valid overlap_tags based on matching tiles between images.
                 overlap_tags = set()
@@ -470,7 +469,6 @@ class SDCImageContainer:
                 if len(overlap_tags) == 0:
                     continue
 
-                assert img1_id < img2_id
                 for img1_overlap_tag in overlap_tags:
                     if (img1_id, img2_id, img1_overlap_tag) in matches:
                         continue
