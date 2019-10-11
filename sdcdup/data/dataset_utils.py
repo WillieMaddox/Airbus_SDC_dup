@@ -196,32 +196,26 @@ def create_dataset_from_tiles_and_truth():
     # candidates because they are most likely very similar images but also most
     # likely not duplicates. Verify by comparing hashes.
 
-    n_matching_tiles_list = [9, 6, 4, 3, 2, 1]
-    for n_matching_tiles in n_matching_tiles_list:
-        # load matches -> [(img1_id, img2_id, img1_overlap_tag), ...]
-        df = pd.read_pickle(os.path.join(interim_data_dir, f'overlap_bmh_tile_scores_{n_matching_tiles}.pkl'))
-        possible_matches = {(i1, i2, o1): s for i1, i2, o1, *s in df.to_dict('split')['data']}
+    # load matches -> [(img1_id, img2_id, img1_overlap_tag), ...]
+    df = pd.read_pickle(os.path.join(interim_data_dir, 'matches_bmh_0.9.pkl'))
 
-        for img1_id, img2_id, img1_overlap_tag in possible_matches:
+    for img1_id, img2_id, img1_overlap_tag in df.to_dict('split')['data']:
 
-            # We've already accounted for these earlier up above.
-            if (img1_id, img2_id) in dup_pairs or (img1_id, img2_id, img1_overlap_tag) in dup_truth:
-                continue
-            # Find scores for far_away_corners.
-            far_scores = []
-            for img1_far_tag in far_away_corners[img1_overlap_tag]:
-                bmh_scores = sdcic.get_bmh_scores(img1_id, img2_id, img1_far_tag)
-                far_scores.append(bmh_scores[0])
-            # The score has to be lower than sdcic.matches_threshold.
-            if min(far_scores) > sdcic.matches_threshold:
-                continue
-            # Keep the one that has the lowest score.
-            idx1, idx2 = tpl[far_away_corners[img1_overlap_tag][far_scores.index(min(far_scores))]][0]
-            img_overlap_pairs.append((img1_id, img2_id, idx1, idx2, 0))
-            if len(img_overlap_pairs) > 2 * n_dup_tile_pairs:
-                done = True
-                break
-        if done:
+        # We've already accounted for these earlier up above.
+        if (img1_id, img2_id) in dup_pairs or (img1_id, img2_id, img1_overlap_tag) in dup_truth:
+            continue
+        # Find scores for far_away_corners.
+        far_scores = []
+        for img1_far_tag in far_away_corners[img1_overlap_tag]:
+            bmh_scores = sdcic.get_bmh_scores(img1_id, img2_id, img1_far_tag)
+            far_scores.append(bmh_scores[0])
+        # The score has to be lower than sdcic.matches_threshold.
+        if min(far_scores) > sdcic.matches_threshold:
+            continue
+        # Keep the one that has the lowest score.
+        idx1, idx2 = tpl[far_away_corners[img1_overlap_tag][far_scores.index(min(far_scores))]][0]
+        img_overlap_pairs.append((img1_id, img2_id, idx1, idx2, 0))
+        if len(img_overlap_pairs) > 2 * n_dup_tile_pairs:
             break
 
     print(f"Number of non-dup/dup tiles: {len(img_overlap_pairs) - n_dup_tile_pairs:>8}/{n_dup_tile_pairs}")
