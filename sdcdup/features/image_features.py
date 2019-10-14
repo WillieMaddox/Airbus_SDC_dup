@@ -200,6 +200,9 @@ class SDCImageContainer:
 
         self.matches_metric = matches_params[0]  # 'bmh'
         self.matches_threshold = matches_params[1]  # 0.9 ~= 1 - ((5 + 20) / 256)
+        matches_file = f'matches_{self.matches_metric}_{self.matches_threshold}.csv'
+        self.matches_file = os.path.join(interim_data_dir, matches_file)
+
         self.matches_white = {
             'bmh': tuple(np.ones(32, dtype='uint8') * 255)
         }
@@ -494,10 +497,6 @@ class SDCImageContainer:
 
         return matches
 
-    def create_overlap_matches_filename(self):
-        file_tag = f'{self.matches_metric}_{self.matches_threshold}'
-        return os.path.join(interim_data_dir, f'matches_{file_tag}.csv')
-
     @property
     def sorted_hash_dict(self):
         if self._sorted_hash_dict is None:
@@ -522,10 +521,8 @@ class SDCImageContainer:
 
 def get_overlap_matches(sdcic):
 
-    overlap_matches_file = sdcic.create_overlap_matches_filename()
-
-    if os.path.exists(overlap_matches_file):
-        df = pd.read_csv(overlap_matches_file, dtype=str)
+    if os.path.exists(sdcic.matches_file):
+        df = pd.read_csv(sdcic.matches_file, dtype=str)
         overlap_matches = df.to_dict('split')['data']
 
     else:
@@ -537,7 +534,7 @@ def get_overlap_matches(sdcic):
             overlap_matches += matches
 
         df = pd.DataFrame(overlap_matches)
-        df.to_csv(overlap_matches_file, index=False)
+        df.to_csv(sdcic.matches_file, index=False)
 
     return overlap_matches
 
