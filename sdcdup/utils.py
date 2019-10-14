@@ -363,7 +363,7 @@ def load_duplicate_truth(filepath=processed_data_dir, filename=None, chunk_type=
     """
 
     chunk_prefix = 'chunk_'
-    if chunk_type == 'manual':
+    if chunk_type == 'truth':
         chunk_prefix += 'truth_'
     elif chunk_type == 'auto':
         chunk_prefix += 'auto_'
@@ -397,7 +397,9 @@ def write_duplicate_truth(filename, duplicate_truth):
 
 def update_duplicate_truth(pre_chunk, filepath=processed_data_dir, verified=False):
 
-    duplicate_truth = load_duplicate_truth(filepath=filepath)
+    chunk_type = 'truth' if verified else 'auto'
+
+    duplicate_truth = load_duplicate_truth(filepath=filepath, chunk_type=chunk_type)
 
     chunk = {}
     for (img1_id, img2_id, img1_overlap_tag), is_duplicate in pre_chunk.items():
@@ -411,7 +413,6 @@ def update_duplicate_truth(pre_chunk, filepath=processed_data_dir, verified=Fals
 
     if len(chunk) > 0:
 
-        chunk_type = 'truth' if verified else 'auto'
         datetime_now = get_datetime_now()
         n_lines_in_chunk = pad_string(str(len(chunk)), 6)
         chunk_filename = '_'.join(['chunk', chunk_type, datetime_now, n_lines_in_chunk]) + '.txt'
