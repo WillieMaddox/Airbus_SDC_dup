@@ -5,7 +5,7 @@ import logging
 # from pathlib import Path
 from dotenv import find_dotenv, load_dotenv
 
-from sdcdup.features import load_image_overlap_properties
+from sdcdup.features import SDCImageContainer
 
 allowed_score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0')
 
@@ -23,7 +23,8 @@ def main(score_types):
     for score_type in score_types:
         assert score_type in allowed_score_types
 
-    load_image_overlap_properties(score_types=score_types)
+    sdcic = SDCImageContainer()
+    sdcic.load_image_overlap_properties(score_types=score_types)
 
 
 if __name__ == '__main__':
