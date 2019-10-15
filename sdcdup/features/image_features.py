@@ -518,25 +518,24 @@ class SDCImageContainer:
 
         return self._sorted_hash_dict
 
+    def get_overlap_matches(self):
 
-def get_overlap_matches(sdcic):
+        if os.path.exists(self.matches_file):
+            df = pd.read_csv(self.matches_file, dtype=str)
+            overlap_matches = df.to_dict('split')['data']
 
-    if os.path.exists(sdcic.matches_file):
-        df = pd.read_csv(sdcic.matches_file, dtype=str)
-        overlap_matches = df.to_dict('split')['data']
+        else:
+            executor_args = [(key, sorted(val)) for key, val in self.sorted_hash_dict.items()]
+            overlap_matches = []
+            for hash_id, img_list in tqdm(executor_args):
+                matches = self.find_valid_pairings_by_hash(hash_id, img_list)
+                overlap_matches += matches
+            overlap_matches = sorted(list(set(overlap_matches)))
 
-    else:
-        executor_args = [(key, sorted(val)) for key, val in sdcic.sorted_hash_dict.items()]
+            df = pd.DataFrame(overlap_matches)
+            df.to_csv(self.matches_file, index=False)
 
-        overlap_matches = []
-        for hash_id, img_list in tqdm(executor_args):
-            matches = sdcic.find_valid_pairings_by_hash(hash_id, img_list)
-            overlap_matches += matches
-
-        df = pd.DataFrame(overlap_matches)
-        df.to_csv(sdcic.matches_file, index=False)
-
-    return overlap_matches
+        return overlap_matches
 
 
 def create_image_overlap_properties(sdcic, score_type, overlap_matches):
@@ -593,7 +592,7 @@ def load_image_overlap_properties(sdcic=None, score_types=None):
 
     Overlap_Scores = namedtuple('overlap_scores', score_types)
     overlap_image_maps = defaultdict(dict)
-    overlap_matches = get_overlap_matches(sdcic)
+    overlap_matches = sdcic.get_overlap_matches()
 
     overlap_scores = {}
     for score_type in tqdm(score_types):
