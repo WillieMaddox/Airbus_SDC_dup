@@ -176,7 +176,13 @@ class SDCImageContainer:
                 'dtype': np.int,
                 'file': os.path.join(interim_data_dir, 'image_sol.pkl'),
                 'shape': (self.n_tiles, 3),
-                'func': self.get_issolid}
+                'func': self.get_issolid},
+            'shp': {
+                'len': 1,
+                'dtype': np.int,
+                'file': os.path.join(interim_data_dir, 'image_shp.pkl'),
+                'shape': (self.n_tiles, ),
+                'func': self.get_shipcnt}
         }
         self.img_metrics = {}
         self.new_metric_ids = []
@@ -185,16 +191,6 @@ class SDCImageContainer:
         # self.tile_greycop_dtype = np.float
         # self.tile_greycop_file = os.path.join(interim_data_dir, filename_greycop)
 
-        self.lbl_metrics_config_master = {
-            'shp': {
-                'len': 3,
-                'dtype': np.int,
-                'file': os.path.join(interim_data_dir, 'image_shp.pkl'),
-                'shape': (self.n_tiles, ),
-                'func': self.get_shipcnt}
-        }
-        self.lbl_metrics_config = None
-        self.lbl_metrics = None
         self._rles = None
         self._sorted_hash_dict = None
 
@@ -202,7 +198,6 @@ class SDCImageContainer:
         self.matches_threshold = matches_params[1]  # 0.9 ~= 1 - ((5 + 20) / 256)
         matches_file = f'matches_{self.matches_metric}_{self.matches_threshold}.csv'
         self.matches_file = os.path.join(interim_data_dir, matches_file)
-
         self.matches_white = {
             'bmh': tuple(np.ones(32, dtype='uint8') * 255)
         }
@@ -295,7 +290,10 @@ class SDCImageContainer:
 
         for m_id in metric_ids:
             if not os.path.exists(self.img_metrics_config[m_id]['file']):
-                self.new_metric_ids.append(m_id)
+                if m_id == 'shp':
+                    self.create_label_metrics(('shp',))
+                else:
+                    self.new_metric_ids.append(m_id)
 
         if len(self.new_metric_ids) > 0:
             self.create_image_metrics()
@@ -306,50 +304,40 @@ class SDCImageContainer:
 
     def create_image_metrics(self):
 
+        img_ids = os.listdir(self.train_image_dir)
         img_metrics = {m_id: {} for m_id in self.new_metric_ids}
         with ThreadPoolExecutor(max_workers=8) as executor:
-            img_ids = os.listdir(self.train_image_dir)
             n_records = len(img_ids)
             for img_id, img_metric in tqdm(zip(img_ids, executor.map(self.process_image, img_ids)), total=n_records):
                 for metric_id, metric_array in img_metric.items():
                     img_metrics[metric_id][img_id] = metric_array
 
-        for metric_id in self.new_metric_ids:
-            self.dump_metrics(img_metrics[metric_id], self.img_metrics_config[metric_id]['file'])
+        for m_id in self.new_metric_ids:
+            self.dump_metrics(img_metrics[m_id], self.img_metrics_config[m_id]['file'])
 
-    def load_label_metrics(self, metric_ids=None):
-        metric_ids = metric_ids or list(self.lbl_metrics_config_master)
-        metric_ids = set(metric_ids) & set(self.lbl_metrics_config_master)
-        self.lbl_metrics_config = {m_id: self.lbl_metrics_config_master[m_id] for m_id in metric_ids}
-        self.lbl_metrics = {m_id: self.load_metrics(self.lbl_metrics_config[m_id]['file']) for m_id in metric_ids}
-        return metric_ids
+    def create_label_metrics(self, metric_ids=('shp',)):
+        """
+        Slightly different approach here since we are reading everything from a single rle csv file,
+        rather than multiple image files.
+        Args:
+            metric_ids:
 
-    def create_label_metrics(self, metric_ids=None):
-        metric_ids = self.load_label_metrics(metric_ids=metric_ids)
-        metric_counters = {metric_id: 0 for metric_id in metric_ids}
+        Returns:
+
+        """
         img_ids = os.listdir(self.train_image_dir)
-
+        lbl_metrics = {m_id: {} for m_id in metric_ids}
         for img_id in tqdm(sorted(img_ids)):
-
-            if img_id in self.lbl_metrics['shp']:
-                continue
-
-            metric_array = np.zeros(self.lbl_metrics_config['shape'], dtype=self.lbl_metrics_config['dtype'])
+            metric_array = np.zeros(self.img_metrics_config['shp']['shape'], dtype=self.img_metrics_config['shp']['dtype'])
             if img_id in self.rles:
                 img = rle_to_full_mask(self.rles[img_id])
                 for idx in range(self.n_tiles):
                     tile = self.get_tile(img, idx)
-                    metric_array[idx] = self.lbl_metrics_config['shp']['func'](tile)
-            self.lbl_metrics['shp'][img_id] = metric_array
-            metric_counters['shp'] += 1
+                    metric_array[idx] = self.img_metrics_config['shp']['func'](tile)
+            lbl_metrics['shp'][img_id] = metric_array
 
-            if metric_counters['shp'] >= 5000:
-                self.dump_metrics(self.lbl_metrics['shp'], self.lbl_metrics_config['shp']['file'])
-                metric_counters['shp'] = 0
-
-        for metric_id in metric_ids:
-            if metric_counters[metric_id] > 0:
-                self.dump_metrics(self.lbl_metrics[metric_id], self.lbl_metrics_config[metric_id]['file'])
+        for m_id in metric_ids:
+            self.dump_metrics(lbl_metrics[m_id], self.img_metrics_config[m_id]['file'])
 
     def get_img(self, filename, path=None):
         path = self.train_image_dir if path is None else path
@@ -582,9 +570,6 @@ class SDCImageContainer:
 
         self.load_image_metrics(image_metrics)
 
-        if 'shp' in score_types:
-            self.load_label_metrics()
-
         Overlap_Scores = namedtuple('overlap_scores', score_types)
         overlap_image_maps = defaultdict(dict)
         overlap_matches = self.get_overlap_matches()
@@ -613,7 +598,7 @@ class SDCImageContainer:
 if __name__ == '__main__':
 
     t0 = time.time()
-    score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0')
+    score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
     sdcic = SDCImageContainer()
     overlap_image_maps = sdcic.load_image_overlap_properties(score_types=score_types)
     print(f'Done in {time.time() - t0}')
