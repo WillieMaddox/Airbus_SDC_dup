@@ -25,15 +25,18 @@
   - [ ] Try using inputs with shape (BATCH_SIZE, 2, 3, 256, 256) instead of (BATCH_SIZE, 6, 256, 256)?
 * Importance sampling
   - [ ] Implement UCB like function?
-  - [ ] Implement TF-IDF like function?
+  - [ ] Implement [TF-IDF](https://skymind.ai/wiki/bagofwords-tf-idf) like function?
   - [ ] Use bmh hamming distance with as_scores=True as initial guess to weights?
-* Use decision tree to show performance of DupNet over other metrics. (not sure how)
-* Need examples of false positives and false negatives for each of the following.
+* Features
+  - [ ] Implement an efficient way to lower (or raise) the overlap matches threshold.
+  - [ ] Implement efficient way to remove truth from auto when they are added manually.
+  - [ ] Provide examples of false positives and false negatives for each of the following:
   - [ ] image hashes
   - [ ] image entropy
   - [ ] image histograms
   - [ ] grey-level co-occurrence matrix
   - [ ] ship overlap
+  - [ ] Use decision trees to show performance of DupNet over other metrics. (not sure how)
 * Dup Tool
   - [ ] Upgrade the dup_tool to use Bokeh or Plotly for interactions and rendering.
   - [ ] Handle StopIteration exception.
