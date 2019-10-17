@@ -421,6 +421,36 @@ def update_duplicate_truth(pre_chunk, filepath=processed_data_dir, verified=Fals
         for k, v in sorted(chunk.items()):
             duplicate_truth[k] = v
 
+        if chunk_type == 'truth':
+            valid_auto_files = []
+            valid_auto_chunks = {}
+            for fname in sorted(os.listdir(filepath)):
+                if not fname.startswith('chunk_auto_'):
+                    continue
+                auto_chunks = read_duplicate_truth(os.path.join(filepath, fname))
+                to_del_arr = []
+                for k, v in chunk.items():
+                    if k in auto_chunks:
+                        to_del_arr.append(k)
+                if len(to_del_arr) > 0:
+                    for to_del in to_del_arr:
+                        auto_is_dup = auto_chunks.pop(to_del)
+                        if chunk[to_del] != auto_is_dup:
+                            print(fname, to_del)
+                    valid_auto_chunks.update(auto_chunks)
+                    valid_auto_files.append(fname)
+
+            if len(valid_auto_chunks) > 0:
+                datetime_now = get_datetime_now()
+                n_lines_in_chunk = pad_string(str(len(valid_auto_chunks)), 6)
+                chunk_filename = '_'.join(['chunk_auto', datetime_now, n_lines_in_chunk]) + '.txt'
+                write_duplicate_truth(os.path.join(filepath, chunk_filename), valid_auto_chunks)
+
+            if len(valid_auto_files) > 0:
+                invalid_auto_files = ['_'.join(['invalid', auto_file]) for auto_file in valid_auto_files]
+                for src, dst in zip(valid_auto_files, invalid_auto_files):
+                    os.rename(os.path.join(filepath, src), os.path.join(filepath, dst))
+
     return duplicate_truth
 
 
