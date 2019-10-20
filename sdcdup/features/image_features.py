@@ -194,13 +194,6 @@ class SDCImageContainer:
         self._rles = None
         self._sorted_hash_dict = None
 
-        self.matches_metric = matches_params[0]  # 'bmh'
-        self.matches_threshold = matches_params[1]  # 0.9 ~= 1 - ((5 + 20) / 256)
-        matches_file = f'matches_{self.matches_metric}_{self.matches_threshold}.csv'
-        self.matches_file = os.path.join(interim_data_dir, matches_file)
-        self.matches_white = {
-            'bmh': tuple(np.ones(32, dtype='uint8') * 255)
-        }
         self.return_args_with_overlap_scores = False
         self.overlap_scores_config = {
             'bmh': {
@@ -231,6 +224,15 @@ class SDCImageContainer:
                 'dtype': np.int,
                 'func': self.gen_shp_scores,
                 'image_metric': 'shp'},
+        }
+        self.previous_matches = set()
+        self.matches_metric = matches_params[0]  # 'bmh'
+        self.matches_threshold = matches_params[1]  # 0.9 ~= 1 - ((5 + 20) / 256)
+        matches_file = f'matches_{self.matches_metric}_{self.matches_threshold}.csv'
+        self.matches_file = os.path.join(interim_data_dir, matches_file)
+        self.matches_func = self.overlap_scores_config[self.matches_metric]['func']
+        self.matches_white = {
+            'bmh': tuple(np.ones(32, dtype='uint8') * 255)
         }
 
     def get_md5hash(self, tile):
@@ -438,52 +440,14 @@ class SDCImageContainer:
     def gen_shp_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
-        scores = []
-        for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
+        scores = np.zeros((9,), dtype=int)
+        for ii, (idx1, idx2) in enumerate(zip(img1_overlap_map, img2_overlap_map)):
             shp1 = self.img_metrics['shp'][img1_id][idx1]
             shp2 = self.img_metrics['shp'][img2_id][idx2]
-            score = shp1 + shp2
-            scores.append(score)
+            scores[ii] = shp1 + shp2
         if self.return_args_with_overlap_scores:
-            return (img1_id, img2_id, img1_overlap_tag, *np.array(scores))
-        return np.array(scores)
-
-    def find_valid_pairings_by_hash(self, hash_id, img_list):
-        """
-        This currently only works with the hashes stored in self.img_metrics['bmh']
-
-        :param hash_id:
-        :param img_list:
-        :return:
-        """
-
-        hamming_lookup = {}
-        for img_id in img_list:
-            hamming_lookup[img_id] = [get_hamming_distance(bmh0, hash_id, normalize=True, as_score=True) for bmh0 in self.img_metrics['bmh'][img_id]]
-
-        matches = []
-        for img1_id in img_list:
-            tiles1 = [idx for idx, bmhd in enumerate(hamming_lookup[img1_id]) if bmhd >= self.matches_threshold]
-            for img2_id in img_list:
-                if img2_id <= img1_id:
-                    continue
-                tiles2 = [idx for idx, bmhd in enumerate(hamming_lookup[img2_id]) if bmhd >= self.matches_threshold]
-
-                # create a set of valid overlap_tags based on matching tiles between images.
-                overlap_tags = set()
-                for t1 in tiles1:
-                    for t2 in tiles2:
-                        overlap_tags.add(pair_tag_lookup.get((t1, t2)))
-
-                for img1_overlap_tag in overlap_tags:
-                    if (img1_id, img2_id, img1_overlap_tag) in matches:
-                        continue
-                    bmh_scores = self.get_bmh_scores(img1_id, img2_id, img1_overlap_tag)
-                    if min(bmh_scores) < self.matches_threshold:
-                        continue
-                    matches.append((img1_id, img2_id, img1_overlap_tag))
-
-        return matches
+            return (img1_id, img2_id, img1_overlap_tag, *scores)
+        return scores
 
     @property
     def sorted_hash_dict(self):
@@ -506,24 +470,106 @@ class SDCImageContainer:
 
         return self._sorted_hash_dict
 
+    def load_previous_overlap_matches(self):
+
+        best_matches_threshold = 1.0
+        best_matches_file = None
+        for matches_file in os.listdir(interim_data_dir):
+            if matches_file.startswith(f'matches_{self.matches_metric}'):
+                matches_threshold_str = matches_file.split('_')[-1]
+                matches_threshold = float(matches_threshold_str.rsplit('.', maxsplit=1)[0])
+                if best_matches_threshold < matches_threshold < self.matches_threshold:
+                    best_matches_threshold = matches_threshold
+                    best_matches_file = matches_file
+                elif self.matches_threshold < best_matches_threshold and matches_threshold < best_matches_threshold:
+                    best_matches_threshold = matches_threshold
+                    best_matches_file = matches_file
+
+        if best_matches_file:
+            # load ALL from best_matches_file
+            # create valid matches
+            # run valid_matches through each score_type.
+            # append sort and save to overlap pkl
+            df = pd.read_csv(os.path.join(interim_data_dir, best_matches_file), dtype=str)
+            self.previous_matches = set([tuple(match) for match in df.to_dict('split')['data']])
+
+    def find_matches_by_hash(self):
+        """
+        This currently only works with the hashes stored in self.img_metrics['bmh']
+
+        :return:
+        """
+
+        executor_args = [(key, sorted(val)) for key, val in self.sorted_hash_dict.items()]
+        many_matches = set()
+        for hash_id, img_list in tqdm(executor_args):
+
+            hamming_lookup = {}
+            for img_id in img_list:
+                hamming_lookup[img_id] = [get_hamming_distance(bmh0, hash_id, normalize=True, as_score=True) for bmh0 in self.img_metrics['bmh'][img_id]]
+
+            matches = set()
+            for img1_id in img_list:
+                tiles1 = [idx for idx, bmhd in enumerate(hamming_lookup[img1_id]) if bmhd >= self.matches_threshold]
+                for img2_id in img_list:
+                    if img2_id <= img1_id:
+                        continue
+                    tiles2 = [idx for idx, bmhd in enumerate(hamming_lookup[img2_id]) if bmhd >= self.matches_threshold]
+
+                    # create a set of valid overlap_tags based on matching tiles between images.
+                    overlap_tags = set()
+                    for t1 in tiles1:
+                        for t2 in tiles2:
+                            overlap_tags.add(pair_tag_lookup.get((t1, t2)))
+
+                    for img1_overlap_tag in overlap_tags:
+                        matches.add((img1_id, img2_id, img1_overlap_tag))
+
+            many_matches.update(matches)
+
+        return many_matches
+
+    def find_valid_matches(self, overlap_matches):
+        new_matches = overlap_matches - self.previous_matches
+        valid_matches = set()
+        for match in tqdm(list(new_matches)):
+            bmh_scores = self.matches_func(*match)
+            if min(bmh_scores) < self.matches_threshold:
+                continue
+            valid_matches.add(tuple(match))
+        return valid_matches
+
+    def parse_valid_matches(self, overlap_matches_file):
+        df = pd.read_pickle(overlap_matches_file)
+        valid_matches = set()
+        for img1_id, img2_id, img1_overlap_tag, *scores9 in df.to_dict('split')['data']:
+            bmh_scores = np.array(scores9[:len(overlap_tag_maps[img1_overlap_tag])])
+            if min(bmh_scores) < self.matches_threshold:
+                continue
+            valid_matches.add(tuple([img1_id, img2_id, img1_overlap_tag]))
+        return valid_matches
+
     def get_overlap_matches(self):
 
         if os.path.exists(self.matches_file):
             df = pd.read_csv(self.matches_file, dtype=str)
             overlap_matches = df.to_dict('split')['data']
-
+            valid_matches = []
         else:
-            executor_args = [(key, sorted(val)) for key, val in self.sorted_hash_dict.items()]
-            overlap_matches = []
-            for hash_id, img_list in tqdm(executor_args):
-                matches = self.find_valid_pairings_by_hash(hash_id, img_list)
-                overlap_matches += matches
-            overlap_matches = sorted(list(set(overlap_matches)))
+            overlap_matches_file = os.path.join(interim_data_dir, f'overlap_{self.matches_metric}.pkl')
+            self.load_previous_overlap_matches()
+            if len(self.previous_matches) > 0:
+                many_matches = self.find_matches_by_hash()
+                valid_matches = self.find_valid_matches(many_matches)
+                overlap_matches = self.previous_matches | valid_matches
+            else:
+                valid_matches = []
+                overlap_matches = self.parse_valid_matches(overlap_matches_file)
 
             df = pd.DataFrame(overlap_matches)
             df.to_csv(self.matches_file, index=False)
 
-        return overlap_matches
+        return overlap_matches, valid_matches
 
     def create_image_overlap_properties(self, score_type, overlap_matches):
 
@@ -536,8 +582,6 @@ class SDCImageContainer:
         # shp: Number of pixels that belong to ships:
 
         self.return_args_with_overlap_scores = True
-
-        overlap_scores_file = os.path.join(interim_data_dir, f'overlap_{score_type}.pkl')
 
         print('score_type =', score_type)
         overlap_scores_list = []
@@ -552,10 +596,9 @@ class SDCImageContainer:
             for overlap_match in tqdm(sorted(overlap_matches)):
                 overlap_scores_list.append(func(*overlap_match))
 
-        df = pd.DataFrame(overlap_scores_list)
-        df.to_pickle(overlap_scores_file)
-
         self.return_args_with_overlap_scores = False
+
+        return overlap_scores_list
 
     def load_image_overlap_properties(self, score_types=None):
 
@@ -567,27 +610,35 @@ class SDCImageContainer:
             image_metric = self.overlap_scores_config[score_type].get('image_metric')
             if image_metric:
                 image_metrics.append(image_metric)
-
         self.load_image_metrics(image_metrics)
 
-        Overlap_Scores = namedtuple('overlap_scores', score_types)
-        overlap_image_maps = defaultdict(dict)
-        overlap_matches = self.get_overlap_matches()
+        overlap_matches, new_matches = self.get_overlap_matches()
 
         overlap_scores = {}
         for score_type in score_types:
+
             overlap_scores_file = os.path.join(interim_data_dir, f'overlap_{score_type}.pkl')
 
-            if not os.path.exists(overlap_scores_file):
-                self.create_image_overlap_properties(score_type, overlap_matches)
+            overlap_scores_list = []
+            if os.path.exists(overlap_scores_file):
+                df = pd.read_pickle(overlap_scores_file)
+                overlap_scores_list = [tuple(record) for record in df.to_dict('split')['data']]
 
-            df = pd.read_pickle(overlap_scores_file)
-            overlap_tile_scores = defaultdict(dict)
-            for img1_id, img2_id, img1_overlap_tag, *scores9 in df.to_dict('split')['data']:
+            if len(new_matches) > 0:
+                overlap_scores_list_new = self.create_image_overlap_properties(score_type, new_matches)
+                overlap_scores_list += overlap_scores_list_new
+                df = pd.DataFrame(overlap_scores_list)
+                df.to_pickle(overlap_scores_file)
+
+            overlap_tile_scores = defaultdict(defaultdict)
+            for img1_id, img2_id, img1_overlap_tag, *scores9 in overlap_scores_list:
                 scores = np.array(scores9[:len(overlap_tag_maps[img1_overlap_tag])])
                 overlap_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = scores
+
             overlap_scores[score_type] = overlap_tile_scores
 
+        Overlap_Scores = namedtuple('overlap_scores', score_types)
+        overlap_image_maps = defaultdict(defaultdict)
         for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(overlap_matches)):
             scores_list = [overlap_scores[s][(img1_id, img2_id)][img1_overlap_tag] for s in score_types]
             overlap_image_maps[(img1_id, img2_id)][img1_overlap_tag] = Overlap_Scores(*scores_list)
@@ -599,6 +650,6 @@ if __name__ == '__main__':
 
     t0 = time.time()
     score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
-    sdcic = SDCImageContainer()
+    sdcic = SDCImageContainer(matches_params=('bmh', 0.8))
     overlap_image_maps = sdcic.load_image_overlap_properties(score_types=score_types)
     print(f'Done in {time.time() - t0}')

@@ -28,7 +28,7 @@
   - [ ] Implement [TF-IDF](https://skymind.ai/wiki/bagofwords-tf-idf) like function?
   - [ ] Use bmh hamming distance with as_scores=True as initial guess to weights?
 * Features
-  - [ ] Implement an efficient way to lower (or raise) the overlap matches threshold.
+  - [x] Implement an efficient way to lower (or raise) the overlap matches threshold.
   - [x] Implement efficient way to remove truth from auto when they are added manually.
   - [ ] Provide examples of false positives and false negatives for each of the following:
   - [ ] image hashes
