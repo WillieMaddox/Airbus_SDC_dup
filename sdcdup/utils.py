@@ -268,8 +268,8 @@ def get_hamming_distance(hash1, hash2, normalize=False, as_score=False):
     The args should be the same datatype as the output type of opencv img_hash blockMeanHash.
     Order does not matter. i.e. hash1, hash2 will produce the same result as hash2, hash1.
 
-    :param hash1: len 32 ndarray of uint8
-    :param hash2: len 32 ndarray of uint8
+    :param hash1: len 96 (3*32) ndarray of uint8
+    :param hash2: len 96 (3*32) ndarray of uint8
     :param normalize: bool. If True, normalize the metric [0, 1]
     :param as_score: bool. flips the hamming metric. The larger the score, the more perfect the match.
     :return: float if normalize is True, uint8 otherwise
@@ -278,8 +278,8 @@ def get_hamming_distance(hash1, hash2, normalize=False, as_score=False):
     h2 = np.unpackbits(hash2)
 
     hamming_metric = np.sum(h1 ^ h2, dtype=np.int)
-    hamming_metric = 256 - hamming_metric if as_score else hamming_metric
-    hamming_metric = hamming_metric / 256 if normalize else hamming_metric
+    hamming_metric = 768 - hamming_metric if as_score else hamming_metric
+    hamming_metric = hamming_metric / 768 if normalize else hamming_metric
 
     return hamming_metric
 

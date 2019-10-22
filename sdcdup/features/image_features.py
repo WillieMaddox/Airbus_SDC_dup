@@ -154,10 +154,10 @@ class SDCImageContainer:
                 'shape': (self.n_tiles, ),
                 'func': self.get_md5hash},
             'bmh': {
-                'len': 32,
+                'len': 96,
                 'dtype': np.uint8,
                 'file': os.path.join(interim_data_dir, 'image_bmh.pkl'),
-                'shape': (self.n_tiles, 32),
+                'shape': (self.n_tiles, 96),
                 'func': self.get_bm0hash},
             'cmh': {
                 'len': 42,
@@ -232,14 +232,17 @@ class SDCImageContainer:
         self.matches_file = os.path.join(interim_data_dir, matches_file)
         self.matches_func = self.overlap_scores_config[self.matches_metric]['func']
         self.matches_white = {
-            'bmh': tuple(np.ones(32, dtype='uint8') * 255)
+            'bmh': tuple(np.ones(96, dtype='uint8') * 255)
         }
 
     def get_md5hash(self, tile):
         return hashlib.md5(tile.tobytes()).hexdigest()[:8]
 
     def get_bm0hash(self, tile):
-        return img_hash.blockMeanHash(tile, mode=0)[0]
+        hash0 = img_hash.blockMeanHash(tile[..., 0], mode=0)
+        hash1 = img_hash.blockMeanHash(tile[..., 1], mode=0)
+        hash2 = img_hash.blockMeanHash(tile[..., 2], mode=0)
+        return np.hstack([hash0, hash1, hash2])[0]
 
     def get_cm0hash(self, tile):
         return img_hash.colorMomentHash(tile)[0]
