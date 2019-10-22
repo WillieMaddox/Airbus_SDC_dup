@@ -486,10 +486,6 @@ class SDCImageContainer:
                     best_matches_file = matches_file
 
         if best_matches_file:
-            # load ALL from best_matches_file
-            # create valid matches
-            # run valid_matches through each score_type.
-            # append sort and save to overlap pkl
             df = pd.read_csv(os.path.join(interim_data_dir, best_matches_file), dtype=str)
             self.previous_matches = set([tuple(match) for match in df.to_dict('split')['data']])
 
@@ -516,7 +512,7 @@ class SDCImageContainer:
                         continue
                     tiles2 = [idx for idx, bmhd in enumerate(hamming_lookup[img2_id]) if bmhd >= self.matches_threshold]
 
-                    # create a set of valid overlap_tags based on matching tiles between images.
+                    # create a set of valid overlap_tags based on matching image tiles.
                     overlap_tags = set()
                     for t1 in tiles1:
                         for t2 in tiles2:

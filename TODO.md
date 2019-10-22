@@ -32,11 +32,11 @@
   - [x] Implement efficient way to remove truth from auto when they are added manually.
   - [ ] Skip image pairs that have already been verified as duplicates.
   - [ ] Provide examples of false positives and false negatives for each of the following:
-  - [ ] image hashes
-  - [ ] image entropy
-  - [ ] image histograms
-  - [ ] grey-level co-occurrence matrix
-  - [ ] ship overlap
+    - [ ] image hashes
+    - [ ] image entropy
+    - [ ] image histograms
+    - [ ] grey-level co-occurrence matrix
+    - [ ] ship overlap
   - [ ] Use decision trees to show performance of DupNet over other metrics. (not sure how)
 * Dup Tool
   - [ ] Upgrade the dup_tool to use Bokeh or Plotly for interactions and rendering.
