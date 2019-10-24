@@ -366,9 +366,9 @@ class SDCImageContainer:
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            bmh1 = self.img_metrics['bmh'][img1_id][idx1]
-            bmh2 = self.img_metrics['bmh'][img2_id][idx2]
-            score = get_hamming_distance(bmh1, bmh2, normalize=True, as_score=True)
+            m1 = self.img_metrics['bmh'][img1_id][idx1]
+            m2 = self.img_metrics['bmh'][img2_id][idx2]
+            score = get_hamming_distance(m1, m2, normalize=True, as_score=True)
             scores.append(score)
         if self.return_args_with_overlap_scores:
             return (img1_id, img2_id, img1_overlap_tag, *scores)
@@ -379,9 +379,9 @@ class SDCImageContainer:
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            cmh1 = self.img_metrics['cmh'][img1_id][idx1]
-            cmh2 = self.img_metrics['cmh'][img2_id][idx2]
-            score = np.exp(-np.linalg.norm(cmh1 - cmh2))
+            m1 = self.img_metrics['cmh'][img1_id][idx1]
+            m2 = self.img_metrics['cmh'][img2_id][idx2]
+            score = np.exp(-np.linalg.norm(m1 - m2))
             scores.append(score)
         if self.return_args_with_overlap_scores:
             return (img1_id, img2_id, img1_overlap_tag, *scores)
@@ -403,10 +403,10 @@ class SDCImageContainer:
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = []
         for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            enp1 = self.img_metrics['enp'][img1_id][idx1]
-            enp2 = self.img_metrics['enp'][img2_id][idx2]
-            score = np.exp(-np.linalg.norm(enp1 - enp2))
-            # score = np.mean((enp1 + enp2) / 2.0)
+            m1 = self.img_metrics['enp'][img1_id][idx1]
+            m2 = self.img_metrics['enp'][img2_id][idx2]
+            score = np.exp(-np.linalg.norm(m1 - m2))
+            # score = np.mean((m1 + m2) / 2.0)
             scores.append(score)
         if self.return_args_with_overlap_scores:
             return (img1_id, img2_id, img1_overlap_tag, *np.array(scores))
@@ -445,9 +445,9 @@ class SDCImageContainer:
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
         scores = np.zeros((9,), dtype=int)
         for ii, (idx1, idx2) in enumerate(zip(img1_overlap_map, img2_overlap_map)):
-            shp1 = self.img_metrics['shp'][img1_id][idx1]
-            shp2 = self.img_metrics['shp'][img2_id][idx2]
-            scores[ii] = shp1 + shp2
+            m1 = self.img_metrics['shp'][img1_id][idx1]
+            m2 = self.img_metrics['shp'][img2_id][idx2]
+            scores[ii] = m1 + m2
         if self.return_args_with_overlap_scores:
             return (img1_id, img2_id, img1_overlap_tag, *scores)
         return scores
