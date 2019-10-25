@@ -640,14 +640,16 @@ class SDCImageContainer:
 
             overlap_scores_file = os.path.join(interim_data_dir, f'overlap_{score_type}.pkl')
 
-            overlap_scores_list = []
             if os.path.exists(overlap_scores_file):
                 df = pd.read_pickle(overlap_scores_file)
                 overlap_scores_list = [tuple(record) for record in df.to_dict('split')['data']]
 
-            if len(new_matches) > 0:
-                overlap_scores_list_new = self.create_image_overlap_properties(score_type, new_matches)
-                overlap_scores_list += overlap_scores_list_new
+                if len(new_matches) > 0:
+                    overlap_scores_list += self.create_image_overlap_properties(score_type, new_matches)
+                    df = pd.DataFrame(overlap_scores_list)
+                    df.to_pickle(overlap_scores_file)
+            else:
+                overlap_scores_list = self.create_image_overlap_properties(score_type, self.matches)
                 df = pd.DataFrame(overlap_scores_list)
                 df.to_pickle(overlap_scores_file)
 
