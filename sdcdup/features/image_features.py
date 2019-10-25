@@ -196,6 +196,10 @@ class SDCImageContainer:
 
         self.return_args_with_overlap_scores = False
         self.overlap_scores_config = {
+            'md5': {
+                'dtype': np.bool_,
+                'func': self.get_md5_scores,
+                'image_metric': 'md5'},
             'bmh': {
                 'dtype': np.float,
                 'func': self.get_bmh_scores,
@@ -360,6 +364,18 @@ class SDCImageContainer:
         if self._rles is None:
             self._rles = get_rles()
         return self._rles
+
+    def get_md5_scores(self, img1_id, img2_id, img1_overlap_tag):
+        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
+        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
+        scores = np.zeros((9,), dtype=np.bool_)
+        for ii, (idx1, idx2) in enumerate(zip(img1_overlap_map, img2_overlap_map)):
+            m1 = self.img_metrics['md5'][img1_id][idx1]
+            m2 = self.img_metrics['md5'][img2_id][idx2]
+            scores[ii] = m1 == m2
+        if self.return_args_with_overlap_scores:
+            return (img1_id, img2_id, img1_overlap_tag, *scores)
+        return scores
 
     def get_bmh_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
@@ -654,7 +670,7 @@ class SDCImageContainer:
 if __name__ == '__main__':
 
     t0 = time.time()
-    score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
+    score_types = ('md5', 'bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
     sdcic = SDCImageContainer(matches_params=('bmh', 0.8))
     overlap_image_maps = sdcic.load_image_overlap_properties(score_types=score_types)
     print(f'Done in {time.time() - t0}')
