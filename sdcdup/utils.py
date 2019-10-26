@@ -454,6 +454,10 @@ def update_duplicate_truth(pre_chunk, filepath=processed_data_dir, verified=Fals
     return duplicate_truth
 
 
+def bce_loss(ytrue, yprob):
+    return -1 * (np.log(yprob) if ytrue else np.log(1 - yprob))
+
+
 def even_split(n_samples, batch_size, split):
     # split the database into train/val sizes such that
     # batch_size divides them both evenly.
