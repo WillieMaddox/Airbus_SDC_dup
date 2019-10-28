@@ -621,9 +621,12 @@ class SDCImageContainer:
 
         return overlap_scores_list
 
-    def load_image_overlap_properties(self, score_types=None):
+    def load_image_overlap_properties(self, score_types='default'):
 
         if score_types is None:
+            score_types = []
+
+        if score_types == 'default':
             score_types = ['bmh', 'cmh', 'enp', 'pix', 'px0']
 
         image_metrics = []
@@ -659,6 +662,9 @@ class SDCImageContainer:
                 overlap_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = scores
 
             overlap_scores[score_type] = overlap_tile_scores
+
+        if len(score_types) == 0:
+            return {}
 
         Overlap_Scores = namedtuple('overlap_scores', score_types)
         overlap_image_maps = defaultdict(defaultdict)
