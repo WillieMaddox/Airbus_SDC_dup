@@ -679,6 +679,6 @@ if __name__ == '__main__':
 
     t0 = time.time()
     score_types = ('md5', 'bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
-    sdcic = SDCImageContainer(matches_params=('bmh', 0.8))
+    sdcic = SDCImageContainer(matches_params=('bmh', 0.99))
     overlap_image_maps = sdcic.load_image_overlap_properties(score_types=score_types)
     print(f'Done in {time.time() - t0}')
