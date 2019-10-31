@@ -77,6 +77,10 @@ overlap_tag_maps = {
     '78': np.array([7, 8]),
     '88': np.array([8])}
 
+overlap_tags = list(overlap_tag_maps)
+
+overlap_tag_pairs = dict(zip(overlap_tags, overlap_tags[::-1]))
+
 boundingbox_corners = {
     '00': np.array([[0, 0], [1, 1]]) * B,
     '01': np.array([[0, 0], [2, 1]]) * B,
@@ -131,32 +135,17 @@ far_away_corners = {
     '78': ('00',),
     '88': ('00',)}
 
-overlap_tag_pairs = {
-    '00': '88',
-    '01': '78',
-    '02': '68',
-    '12': '67',
-    '22': '66',
-    '03': '58',
-    '04': '48',
-    '05': '38',
-    '15': '37',
-    '25': '36',
-    '06': '28',
-    '07': '18',
-    '08': '08',
-    '18': '07',
-    '28': '06',
-    '36': '25',
-    '37': '15',
-    '38': '05',
-    '48': '04',
-    '58': '03',
-    '66': '22',
-    '67': '12',
-    '68': '02',
-    '78': '01',
-    '88': '00'}
+
+def generate_third_party_overlaps():
+    overlap_tag_matrix = np.array(overlap_tags).reshape((5, 5))
+    third_party_overlaps = {}
+    for overlap_tag in overlap_tags:
+        third_party_overlaps[overlap_tag] = []
+        center_row, center_col = np.argwhere(overlap_tag_matrix == overlap_tag)[0]
+        for ii in range(max(0, center_row - 2), min(center_row + 3, 5)):
+            for jj in range(max(0, center_col - 2), min(center_col + 3, 5)):
+                third_party_overlaps[overlap_tag].append(overlap_tags[ii * 5 + jj])
+    return third_party_overlaps
 
 
 def generate_overlap_tag_slices():
