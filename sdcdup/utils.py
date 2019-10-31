@@ -50,33 +50,6 @@ ij_pairs_3x3 = ((0, 0), (0, 1), (0, 2),
 idx2ijpair = {idx: ij for idx, ij in enumerate(ij_pairs_3x3)}
 ijpair2idx = {ij: idx for idx, ij in enumerate(ij_pairs_3x3)}
 
-boundingbox_corners = {
-    '00': np.array([[0, 0], [1, 1]]) * B,
-    '01': np.array([[0, 0], [2, 1]]) * B,
-    '02': np.array([[0, 0], [3, 1]]) * B,
-    '12': np.array([[1, 0], [3, 1]]) * B,
-    '22': np.array([[2, 0], [3, 1]]) * B,
-    '03': np.array([[0, 0], [1, 2]]) * B,
-    '04': np.array([[0, 0], [2, 2]]) * B,
-    '05': np.array([[0, 0], [3, 2]]) * B,
-    '15': np.array([[1, 0], [3, 2]]) * B,
-    '25': np.array([[2, 0], [3, 2]]) * B,
-    '06': np.array([[0, 0], [1, 3]]) * B,
-    '07': np.array([[0, 0], [2, 3]]) * B,
-    '08': np.array([[0, 0], [3, 3]]) * B,
-    '18': np.array([[1, 0], [3, 3]]) * B,
-    '28': np.array([[2, 0], [3, 3]]) * B,
-    '36': np.array([[0, 1], [1, 3]]) * B,
-    '37': np.array([[0, 1], [2, 3]]) * B,
-    '38': np.array([[0, 1], [3, 3]]) * B,
-    '48': np.array([[1, 1], [3, 3]]) * B,
-    '58': np.array([[2, 1], [3, 3]]) * B,
-    '66': np.array([[0, 2], [1, 3]]) * B,
-    '67': np.array([[0, 2], [2, 3]]) * B,
-    '68': np.array([[0, 2], [3, 3]]) * B,
-    '78': np.array([[1, 2], [3, 3]]) * B,
-    '88': np.array([[2, 2], [3, 3]]) * B}
-
 overlap_tag_maps = {
     '00': np.array([0]),
     '01': np.array([0, 1]),
@@ -103,6 +76,33 @@ overlap_tag_maps = {
     '68': np.array([6, 7, 8]),
     '78': np.array([7, 8]),
     '88': np.array([8])}
+
+boundingbox_corners = {
+    '00': np.array([[0, 0], [1, 1]]) * B,
+    '01': np.array([[0, 0], [2, 1]]) * B,
+    '02': np.array([[0, 0], [3, 1]]) * B,
+    '12': np.array([[1, 0], [3, 1]]) * B,
+    '22': np.array([[2, 0], [3, 1]]) * B,
+    '03': np.array([[0, 0], [1, 2]]) * B,
+    '04': np.array([[0, 0], [2, 2]]) * B,
+    '05': np.array([[0, 0], [3, 2]]) * B,
+    '15': np.array([[1, 0], [3, 2]]) * B,
+    '25': np.array([[2, 0], [3, 2]]) * B,
+    '06': np.array([[0, 0], [1, 3]]) * B,
+    '07': np.array([[0, 0], [2, 3]]) * B,
+    '08': np.array([[0, 0], [3, 3]]) * B,
+    '18': np.array([[1, 0], [3, 3]]) * B,
+    '28': np.array([[2, 0], [3, 3]]) * B,
+    '36': np.array([[0, 1], [1, 3]]) * B,
+    '37': np.array([[0, 1], [2, 3]]) * B,
+    '38': np.array([[0, 1], [3, 3]]) * B,
+    '48': np.array([[1, 1], [3, 3]]) * B,
+    '58': np.array([[2, 1], [3, 3]]) * B,
+    '66': np.array([[0, 2], [1, 3]]) * B,
+    '67': np.array([[0, 2], [2, 3]]) * B,
+    '68': np.array([[0, 2], [3, 3]]) * B,
+    '78': np.array([[1, 2], [3, 3]]) * B,
+    '88': np.array([[2, 2], [3, 3]]) * B}
 
 far_away_corners = {
     '00': ('88',),
