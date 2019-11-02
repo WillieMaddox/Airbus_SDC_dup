@@ -10,7 +10,6 @@ from torch.utils import data
 from tqdm import tqdm
 
 from sdcdup.utils import generate_tag_pair_lookup
-from sdcdup.utils import far_away_corners
 from sdcdup.utils import get_hamming_distance
 from sdcdup.utils import fuzzy_join
 from sdcdup.utils import get_tile
@@ -23,8 +22,35 @@ from sdcdup.utils import load_duplicate_truth
 from sdcdup.utils import interim_data_dir
 from sdcdup.utils import train_image_dir
 from sdcdup.utils import train_tile_dir
-
 from sdcdup.features import SDCImageContainer
+
+
+far_away_corners = {
+    '00': ('88',),
+    '01': ('88',),
+    '02': ('88', '66'),
+    '12': ('66',),
+    '22': ('66',),
+    '03': ('88',),
+    '04': ('88',),
+    '05': ('88', '66'),
+    '15': ('66',),
+    '25': ('66',),
+    '06': ('88', '22'),
+    '07': ('88', '22'),
+    '08': ('88', '66', '22', '00'),
+    '18': ('66', '00'),
+    '28': ('66', '00'),
+    '36': ('22',),
+    '37': ('22',),
+    '38': ('22', '00'),
+    '48': ('00',),
+    '58': ('00',),
+    '66': ('22',),
+    '67': ('22',),
+    '68': ('22', '00'),
+    '78': ('00',),
+    '88': ('00',)}
 
 
 def write_256_tile(img_id):

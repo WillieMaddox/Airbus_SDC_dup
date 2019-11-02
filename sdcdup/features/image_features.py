@@ -491,8 +491,6 @@ class SDCImageContainer:
 
     def get_previous_best_matches(self):
 
-        BestMatches = namedtuple('BestMatches', 'threshold file')
-
         best_matches_threshold = 1.0
         best_matches_file = None
         for matches_file in os.listdir(interim_data_dir):
