@@ -4,9 +4,10 @@ import cv2
 from scipy import stats
 
 from sdcdup.utils import overlap_tag_pairs
-from sdcdup.utils import boundingbox_corners
+from sdcdup.utils import generate_boundingbox_corners
 from sdcdup.utils import generate_overlap_tag_slices
 
+boundingbox_corners = generate_boundingbox_corners()
 overlap_tag_slices = generate_overlap_tag_slices()
 ChannelShift = namedtuple('ChannelShift', 'method shared')
 
