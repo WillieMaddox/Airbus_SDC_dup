@@ -178,6 +178,18 @@ def rle_decode(rle_string, shape=(768, 768)):
     return img.reshape(shape).T  # Needed to align to RLE direction
 
 
+def rle_encode(img):
+    """
+    img: numpy array, 1 - mask, 0 - background
+    Returns run length as string formatted
+    """
+    pixels = img.T.flatten()
+    pixels = np.concatenate([[0], pixels, [0]])
+    runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
+    runs[1::2] -= runs[::2]
+    return ' '.join(str(x) for x in runs)
+
+
 def rle_to_full_mask(rle_list, shape=(768, 768)):
     """
     Convert a list of run-length encoded masks to a binary mask.

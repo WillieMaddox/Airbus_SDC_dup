@@ -7,6 +7,8 @@ from sdcdup.utils import generate_boundingbox_corners
 from sdcdup.utils import generate_third_party_overlaps
 from sdcdup.utils import generate_pair_tag_lookup
 from sdcdup.utils import generate_tag_pair_lookup
+from sdcdup.utils import rle_encode
+from sdcdup.utils import rle_decode
 
 def test_overlap_tags():
     overlap_tags0 = [
@@ -191,3 +193,19 @@ def test_generate_tag_pair_lookup():
     for tag in tpl:
         for pair1, pair2 in zip(tpl0[tag], tpl[tag]):
             assert pair1[0] == pair2[0] and pair1[1] == pair2[1]
+
+
+def test_rle_decode():
+    data_shape = (768, 768)
+    rle = "368419 8 369187 8 369955 8 370723 8 371491 8 372259 8 373027 8 373794 9 374562 9 375330 9 376098 9 376866 9"
+    data = rle_decode(rle, data_shape)
+    rle_out = rle_encode(data)
+    assert rle == rle_out
+
+
+def test_rle_encode():
+    for i in range(3, 100, 3):
+        data = np.random.randint(0, 2, (i, i))
+        rle = rle_encode(data)
+        data_out = rle_decode(rle, data.shape)
+        np.testing.assert_allclose(data, data_out)
