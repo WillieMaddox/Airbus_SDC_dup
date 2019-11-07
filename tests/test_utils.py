@@ -9,6 +9,8 @@ from sdcdup.utils import generate_pair_tag_lookup
 from sdcdup.utils import generate_tag_pair_lookup
 from sdcdup.utils import rle_encode
 from sdcdup.utils import rle_decode
+from sdcdup.utils import pad_string
+
 
 def test_overlap_tags():
     overlap_tags0 = [
@@ -209,3 +211,14 @@ def test_rle_encode():
         rle = rle_encode(data)
         data_out = rle_decode(rle, data.shape)
         np.testing.assert_allclose(data, data_out)
+
+
+def test_pad_string():
+    x_n_res = [
+        ('345', 3, '345'),
+        ('345', 4, '0345'),
+        ('345', 5, '00345'),
+        ('345', 6, '000345')
+    ]
+    for x, n, res in x_n_res:
+        assert pad_string(x, n) == res
