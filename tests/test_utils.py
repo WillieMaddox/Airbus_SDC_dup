@@ -91,7 +91,7 @@ def test_generate_boundingbox_corners():
 
 
 def test_generate_third_party_overlaps():
-    third_party_overlaps2 = {
+    third_party_overlaps0 = {
         '00': [overlap_tags[i] for i in [0, 1, 2, 5, 6, 7, 10, 11, 12]],
         '01': [overlap_tags[i] for i in [0, 1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13]],
         '02': [overlap_tags[i] for i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]],
@@ -122,8 +122,8 @@ def test_generate_third_party_overlaps():
     third_party_overlaps = generate_third_party_overlaps()
 
     for overlap_tag in overlap_tags:
-        for otp, otp2 in zip(third_party_overlaps[overlap_tag], third_party_overlaps2[overlap_tag]):
-            assert otp == otp2, print(overlap_tag, otp, otp2)
+        for otp0, otp in zip(third_party_overlaps0[overlap_tag], third_party_overlaps[overlap_tag]):
+            assert otp0 == otp, print(overlap_tag, otp0, otp)
 
 
 def test_generate_pair_tag_lookup():
