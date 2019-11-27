@@ -22,7 +22,6 @@ from sdcdup.utils import load_duplicate_truth
 from sdcdup.utils import interim_data_dir
 from sdcdup.utils import train_image_dir
 from sdcdup.utils import train_tile_dir
-from sdcdup.features import SDCImageContainer
 
 
 far_away_corners = {
@@ -75,7 +74,7 @@ def create_256_tiles(train_image_dir, train_tile_dir):
             pass
 
 
-def create_dataset_from_tiles():
+def create_dataset_from_tiles(sdcic):
     """
     is_dup issolid  action
      i==j   i   j    skip?
@@ -93,8 +92,6 @@ def create_dataset_from_tiles():
     :param sdcic:
     :return:
     """
-    sdcic = SDCImageContainer()
-    sdcic.load_image_metrics()
 
     img_overlap_pairs_dup_keys = []
     img_overlap_pairs_non_dup_all = []
@@ -165,10 +162,8 @@ def create_dataset_from_tiles():
     return img_overlap_pairs
 
 
-def create_dataset_from_tiles_and_truth():
 
-    sdcic = SDCImageContainer()
-    sdcic.load_image_metrics()
+def create_dataset_from_tiles_and_truth(sdcic):
 
     tpl = generate_tag_pair_lookup()
     dup_truth = load_duplicate_truth()
