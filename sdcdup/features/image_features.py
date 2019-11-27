@@ -167,9 +167,9 @@ class SDCImageContainer:
             'bmh': {
                 'len': 96,
                 'dtype': np.uint8,
-                'file': os.path.join(interim_data_dir, 'image_bmh.pkl'),
+                'file': os.path.join(interim_data_dir, 'image_bmh_96.pkl'),
                 'shape': (self.n_tiles, 96),
-                'func': self.get_bm0hash},
+                'func': self.get_bm0hash_96},
             'cmh': {
                 'len': 42,
                 'dtype': np.float,
@@ -283,6 +283,9 @@ class SDCImageContainer:
         return hashlib.md5(tile.tobytes()).hexdigest()[:8]
 
     def get_bm0hash(self, tile):
+        return img_hash.blockMeanHash(tile, mode=0)[0]
+
+    def get_bm0hash_96(self, tile):
         hash0 = img_hash.blockMeanHash(tile[..., 0], mode=0)
         hash1 = img_hash.blockMeanHash(tile[..., 1], mode=0)
         hash2 = img_hash.blockMeanHash(tile[..., 2], mode=0)
@@ -440,12 +443,10 @@ class SDCImageContainer:
     def get_bmh_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
         img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
-        scores = []
-        for idx1, idx2 in zip(img1_overlap_map, img2_overlap_map):
-            m1 = self.img_metrics['bmh'][img1_id][idx1]
-            m2 = self.img_metrics['bmh'][img2_id][idx2]
-            score = get_hamming_distance(m1, m2, normalize=True, as_score=True)
-            scores.append(score)
+        m1 = self.img_metrics['bmh'][img1_id][img1_overlap_map]
+        m2 = self.img_metrics['bmh'][img2_id][img2_overlap_map]
+        scores = get_hamming_distance_array(m1, m2, normalize=True, as_score=True)
+
         if self.return_args_with_overlap_scores:
             return (img1_id, img2_id, img1_overlap_tag, *scores)
         return scores
