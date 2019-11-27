@@ -129,6 +129,16 @@ def gen_greycop_hash(tile, n_metrics):
     return np.mean(glcm_feats, axis=1)
 
 
+def get_subhist3d(k, hist_rgb, r, g, b):
+    rmin = max(0, r - k)
+    gmin = max(0, g - k)
+    bmin = max(0, b - k)
+    rmax = min(256, r + k + 1)
+    gmax = min(256, g + k + 1)
+    bmax = min(256, b + k + 1)
+    return hist_rgb[rmin:rmax, gmin:gmax, bmin:bmax]
+
+
 class SDCImageContainer:
 
     def __init__(self,
@@ -145,6 +155,7 @@ class SDCImageContainer:
         self.n_cols = 3
         self.n_tiles = self.n_rows * self.n_cols
         self.tile_score_max = self.sz * self.sz * 3 * 255  # 3 color channels, uint8
+        self.max_num_tile_pixels = self.sz * self.sz
 
         self.img_metrics_config = {
             'md5': {
@@ -171,6 +182,18 @@ class SDCImageContainer:
                 'file': os.path.join(interim_data_dir, 'image_enp.pkl'),
                 'shape': (self.n_tiles, 3),
                 'func': self.get_entropy},
+            'hst': {
+                'len': 256,
+                'dtype': np.uint16,
+                'file': os.path.join(interim_data_dir, 'image_hst.pkl'),
+                'shape': (self.n_tiles, 256),
+                'func': self.get_histstats},
+            'avg': {
+                'len': 768,
+                'dtype': np.uint8,
+                'file': os.path.join(interim_data_dir, 'image_avg.pkl'),
+                'shape': (self.n_tiles, 768),
+                'func': self.get_avgpool},
             'sol': {
                 'len': 3,
                 'dtype': np.int,
@@ -216,6 +239,14 @@ class SDCImageContainer:
                 'dtype': np.float,
                 'func': self.get_enp_scores,
                 'image_metric': 'enp'},
+            'hst': {
+                'dtype': np.uint16,
+                'func': self.gen_hst_scores,
+                'image_metric': 'hst'},
+            'avg': {
+                'dtype': np.uint8,
+                'func': self.gen_avg_scores,
+                'image_metric': 'avg'},
             'pix': {
                 'dtype': np.int,
                 'func': self.gen_pix_scores,
@@ -250,6 +281,26 @@ class SDCImageContainer:
 
     def get_cm0hash(self, tile):
         return img_hash.colorMomentHash(tile)[0]
+
+    def get_histstats(self, tile):
+        hist_rgb = cv2.calcHist([tile], [0, 1, 2], None, [256] * 3, [0, 256, 0, 256, 0, 256]).astype(np.int)
+        r, g, b = np.unravel_index(np.argmax(hist_rgb), hist_rgb.shape)
+        old_neighbor_total = 0
+        neighbor_counts = np.zeros((256,), dtype=np.uint16)
+        for k in range(256):
+            new_neighbor_total = np.sum(get_subhist3d(k, hist_rgb, r, g, b))
+            neighbor_counts[k] = new_neighbor_total - old_neighbor_total
+            if new_neighbor_total == self.max_num_tile_pixels:
+                break
+            old_neighbor_total = new_neighbor_total
+        return neighbor_counts
+
+    def get_avgpool(self, tile):
+        M, N, C = tile.shape
+        MK = M // 16
+        NL = N // 16
+        res = np.median(tile[:MK * 16, :NL * 16, :].reshape(MK, 16, NL, 16, C), axis=(1, 3))
+        return res.reshape(768)
 
     def get_issolid(self, tile):
         issolid_flags = np.array([-1, -1, -1])
@@ -315,7 +366,7 @@ class SDCImageContainer:
 
         img_ids = os.listdir(self.train_image_dir)
         img_metrics = {m_id: {} for m_id in self.new_metric_ids}
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        with ThreadPoolExecutor() as executor:
             n_records = len(img_ids)
             for img_id, img_metric in tqdm(zip(img_ids, executor.map(self.process_image, img_ids)), total=n_records):
                 for metric_id, metric_array in img_metric.items():
@@ -422,11 +473,34 @@ class SDCImageContainer:
             m1 = self.img_metrics['enp'][img1_id][idx1]
             m2 = self.img_metrics['enp'][img2_id][idx2]
             score = np.exp(-np.linalg.norm(m1 - m2))
-            # score = np.mean((m1 + m2) / 2.0)
             scores.append(score)
         if self.return_args_with_overlap_scores:
             return (img1_id, img2_id, img1_overlap_tag, *np.array(scores))
         return np.array(scores)
+
+    def gen_hst_scores(self, img1_id, img2_id, img1_overlap_tag):
+        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
+        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
+        scores = np.zeros((9,), dtype=int)
+        for ii, (idx1, idx2) in enumerate(zip(img1_overlap_map, img2_overlap_map)):
+            h1 = self.img_metrics['hst'][img1_id][idx1]
+            h2 = self.img_metrics['hst'][img2_id][idx2]
+            scores[ii] = fuzzy_diff(h1, h2)
+        if self.return_args_with_overlap_scores:
+            return (img1_id, img2_id, img1_overlap_tag, *scores)
+        return scores
+
+    def gen_avg_scores(self, img1_id, img2_id, img1_overlap_tag):
+        img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
+        img2_overlap_map = overlap_tag_maps[overlap_tag_pairs[img1_overlap_tag]]
+        scores = np.zeros((9,), dtype=int)
+        for ii, (idx1, idx2) in enumerate(zip(img1_overlap_map, img2_overlap_map)):
+            a1 = self.img_metrics['avg'][img1_id][idx1]
+            a2 = self.img_metrics['avg'][img2_id][idx2]
+            scores[ii] = fuzzy_diff(a1, a2)
+        if self.return_args_with_overlap_scores:
+            return (img1_id, img2_id, img1_overlap_tag, *scores)
+        return scores
 
     def gen_pix_scores(self, img1_id, img2_id, img1_overlap_tag):
         img1_overlap_map = overlap_tag_maps[img1_overlap_tag]
@@ -602,12 +676,11 @@ class SDCImageContainer:
 
         self.return_args_with_overlap_scores = True
 
-        print('score_type =', score_type)
         overlap_scores_list = []
         func = self.overlap_scores_config[score_type]['func']
 
         if score_type in ('pix', 'px0'):
-            with ThreadPoolExecutor(max_workers=24) as executor:
+            with ThreadPoolExecutor() as executor:
                 n_matches = len(overlap_matches)
                 for overlap_match in tqdm(executor.map(func, *zip(*overlap_matches)), total=n_matches):
                     overlap_scores_list.append(overlap_match)
@@ -639,6 +712,7 @@ class SDCImageContainer:
         overlap_scores = {}
         for score_type in score_types:
 
+            print('score_type =', score_type)
             overlap_scores_file = os.path.join(interim_data_dir, f'overlap_{score_type}.pkl')
 
             if os.path.exists(overlap_scores_file):
