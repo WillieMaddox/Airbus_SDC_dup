@@ -222,15 +222,18 @@ class SDCImageContainer:
             'md5': {
                 'dtype': np.bool_,
                 'func': self.get_md5_scores,
-                'image_metric': 'md5'},
+                'image_metric': 'md5',
+                'filename': 'overlap_md5.pkl'},
             'bmh': {
                 'dtype': np.float,
                 'func': self.get_bmh_scores,
-                'image_metric': 'bmh'},
+                'image_metric': 'bmh',
+                'filename': 'overlap_bmh.pkl'},
             'cmh': {
                 'dtype': np.float,
                 'func': self.get_cmh_scores,
-                'image_metric': 'cmh'},
+                'image_metric': 'cmh',
+                'filename': 'overlap_cmh.pkl'},
             # 'gcm': {
             #     'dtype': np.float,
             #     'func': self.get_gcm_scores,
@@ -238,27 +241,33 @@ class SDCImageContainer:
             'enp': {
                 'dtype': np.float,
                 'func': self.get_enp_scores,
-                'image_metric': 'enp'},
+                'image_metric': 'enp',
+                'filename': 'overlap_enp.pkl'},
             'hst': {
                 'dtype': np.uint16,
                 'func': self.gen_hst_scores,
-                'image_metric': 'hst'},
+                'image_metric': 'hst',
+                'filename': 'overlap_hst.pkl'},
             'avg': {
                 'dtype': np.uint8,
                 'func': self.gen_avg_scores,
-                'image_metric': 'avg'},
+                'image_metric': 'avg',
+                'filename': 'overlap_avg.pkl'},
             'pix': {
                 'dtype': np.int,
                 'func': self.gen_pix_scores,
-                'image_metric': None},
+                'image_metric': None,
+                'filename': 'overlap_pix.pkl'},
             'px0': {
                 'dtype': np.int,
                 'func': self.gen_px0_scores,
-                'image_metric': None},
+                'image_metric': None,
+                'filename': 'overlap_px0.pkl'},
             'shp': {
                 'dtype': np.int,
                 'func': self.gen_shp_scores,
-                'image_metric': 'shp'},
+                'image_metric': 'shp',
+                'filename': 'overlap_shp.pkl'},
         }
         self.matches = set()
         self.matches_metric = matches_params[0]  # 'bmh'
@@ -713,7 +722,9 @@ class SDCImageContainer:
         for score_type in score_types:
 
             print('score_type =', score_type)
-            overlap_scores_file = os.path.join(interim_data_dir, f'overlap_{score_type}.pkl')
+
+            overlap_scores_filename = self.overlap_scores_config[score_type].get('filename')
+            overlap_scores_file = os.path.join(interim_data_dir, overlap_scores_filename)
 
             if os.path.exists(overlap_scores_file):
                 df = pd.read_pickle(overlap_scores_file)
