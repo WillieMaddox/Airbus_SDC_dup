@@ -193,10 +193,10 @@ def create_dataset_from_tiles_and_truth(sdcic):
         if is_dup or (img1_id, img2_id) in dup_pairs:
             continue
 
+        # If 2 tiles are the same then skip them since they are actually dups.
+        # Remember a dup corresponds to the "entire" overlay.  if the overlay
+        # is flagged as non-dup then at least one of the tiles is different.
         for idx1, idx2 in tpl[img1_overlap_tag]:
-            # If 2 tiles are the same then skip them since they are actually dups.
-            # Remember a dup corresponds to the "entire" overlay.  if the overlay
-            # is flagged as non-dup then at least one of the tiles is different.
             if sdcic.img_metrics['md5'][img1_id][idx1] == sdcic.img_metrics['md5'][img2_id][idx2]:
                 continue
             img_overlap_pairs.append((img1_id, img2_id, idx1, idx2, is_dup))

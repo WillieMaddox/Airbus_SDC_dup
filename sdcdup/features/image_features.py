@@ -215,6 +215,7 @@ class SDCImageContainer:
         # self.tile_greycop_file = os.path.join(interim_data_dir, filename_greycop)
 
         self._rles = None
+        self.matches = None
         self._sorted_hash_dict = None
 
         self.return_args_with_overlap_scores = False
@@ -269,7 +270,6 @@ class SDCImageContainer:
                 'image_metric': 'shp',
                 'filename': 'overlap_shp.pkl'},
         }
-        self.matches = set()
         self.matches_metric = matches_params[0]  # 'bmh'
         self.matches_threshold = matches_params[1]  # 0.9 ~= 1 - ((5 + 20) / 256)
         matches_file = f'matches_{self.matches_metric}_{self.matches_threshold}.csv'
@@ -740,10 +740,10 @@ class SDCImageContainer:
                 df = pd.DataFrame(overlap_scores_list)
                 df.to_pickle(overlap_scores_file)
 
-            overlap_tile_scores = defaultdict(defaultdict)
-            for img1_id, img2_id, img1_overlap_tag, *scores9 in overlap_scores_list:
+            overlap_tile_scores = {}
+            for img1_id, img2_id, img1_overlap_tag, *scores9 in tqdm(overlap_scores_list):
                 scores = np.array(scores9[:len(overlap_tag_maps[img1_overlap_tag])])
-                overlap_tile_scores[(img1_id, img2_id)][img1_overlap_tag] = scores
+                overlap_tile_scores[(img1_id, img2_id, img1_overlap_tag)] = scores
 
             overlap_scores[score_type] = overlap_tile_scores
 
@@ -753,7 +753,7 @@ class SDCImageContainer:
         Overlap_Scores = namedtuple('overlap_scores', score_types)
         overlap_image_maps = defaultdict(defaultdict)
         for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(self.matches)):
-            scores_list = [overlap_scores[s][(img1_id, img2_id)][img1_overlap_tag] for s in score_types]
+            scores_list = [overlap_scores[s][(img1_id, img2_id, img1_overlap_tag)] for s in score_types]
             overlap_image_maps[(img1_id, img2_id)][img1_overlap_tag] = Overlap_Scores(*scores_list)
 
         return overlap_image_maps
