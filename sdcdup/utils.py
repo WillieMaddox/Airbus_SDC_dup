@@ -329,7 +329,7 @@ def read_duplicate_truth(filename):
     return duplicate_truth
 
 
-def load_duplicate_truth(filepath=processed_data_dir, filename=None, chunk_type='both'):
+def load_duplicate_truth(filepath=processed_data_dir, filename=None, chunk_type='truth'):
     """
     Load in the main single file (duplicate_truth.txt) or load and concatenate all chunk_truth files.
     Should get the same result either way.
