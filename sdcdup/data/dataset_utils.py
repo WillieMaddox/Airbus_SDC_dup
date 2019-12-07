@@ -24,34 +24,6 @@ from sdcdup.utils import train_image_dir
 from sdcdup.utils import train_tile_dir
 
 
-far_away_corners = {
-    '00': ('88',),
-    '01': ('88',),
-    '02': ('88', '66'),
-    '12': ('66',),
-    '22': ('66',),
-    '03': ('88',),
-    '04': ('88',),
-    '05': ('88', '66'),
-    '15': ('66',),
-    '25': ('66',),
-    '06': ('88', '22'),
-    '07': ('88', '22'),
-    '08': ('88', '66', '22', '00'),
-    '18': ('66', '00'),
-    '28': ('66', '00'),
-    '36': ('22',),
-    '37': ('22',),
-    '38': ('22', '00'),
-    '48': ('00',),
-    '58': ('00',),
-    '66': ('22',),
-    '67': ('22',),
-    '68': ('22', '00'),
-    '78': ('00',),
-    '88': ('00',)}
-
-
 def write_256_tile(img_id):
     img = None
     filebase, fileext = img_id.split('.')
@@ -162,8 +134,7 @@ def create_dataset_from_tiles(sdcic):
     return img_overlap_pairs
 
 
-
-def create_dataset_from_tiles_and_truth(sdcic):
+def create_dataset_from_truth(sdcic):
 
     tpl = generate_tag_pair_lookup()
     dup_truth = load_duplicate_truth()
@@ -207,70 +178,6 @@ def create_dataset_from_tiles_and_truth(sdcic):
             break
 
     print(f"Number of non-dup/dup tiles: {len(img_overlap_pairs) - n_dup_tile_pairs:>8}/{n_dup_tile_pairs}")
-
-    if done:
-        return img_overlap_pairs
-
-    # Now go through the rest of the possible matches not yet verified in truth
-    # and pick out the two tiles that, if the images were dups, would be the
-    # tiles farthest away and set those as non-dups. These are good non dup
-    # candidates because they are most likely very similar images but also most
-    # likely not duplicates. Verify by comparing hashes.
-
-    # load matches -> [(img1_id, img2_id, img1_overlap_tag), ...]
-    df = pd.read_pickle(os.path.join(interim_data_dir, 'matches_bmh_0.9.pkl'))
-
-    for img1_id, img2_id, img1_overlap_tag in df.to_dict('split')['data']:
-
-        # We've already accounted for these earlier up above.
-        if (img1_id, img2_id) in dup_pairs or (img1_id, img2_id, img1_overlap_tag) in dup_truth:
-            continue
-        # Find scores for far_away_corners.
-        far_scores = []
-        for img1_far_tag in far_away_corners[img1_overlap_tag]:
-            bmh_scores = sdcic.get_bmh_scores(img1_id, img2_id, img1_far_tag)
-            far_scores.append(bmh_scores[0])
-        # The score has to be lower than sdcic.matches_threshold.
-        if min(far_scores) > sdcic.matches_threshold:
-            continue
-        # Keep the one that has the lowest score.
-        idx1, idx2 = tpl[far_away_corners[img1_overlap_tag][far_scores.index(min(far_scores))]][0]
-        img_overlap_pairs.append((img1_id, img2_id, idx1, idx2, 0))
-        if len(img_overlap_pairs) > 2 * n_dup_tile_pairs:
-            break
-
-    print(f"Number of non-dup/dup tiles: {len(img_overlap_pairs) - n_dup_tile_pairs:>8}/{n_dup_tile_pairs}")
-
-    if done:
-        return img_overlap_pairs
-
-    # Finally, if we still don't have a 50/50 split between dup/non-dup datapoints,
-    # choose random images from the dataset and a random tile from each image and set
-    # those as non-dups and continue until we have 50/50 split. Verify by comparing hashes.
-
-    img_ids = os.listdir(sdcic.train_image_dir)
-    corners = ['00', '22', '66', '88']
-
-    while True:
-
-        img1_id, img2_id = np.random.choice(img_ids, 2)
-        # TODO: implement option to choose ANY random tiles not just the ones on opposite corners.
-        img1_overlap_tag = np.random.choice(corners)
-
-        # Probably won't ever happen but just in case...
-        if (img1_id, img2_id) in dup_pairs or (img1_id, img2_id, img1_overlap_tag) in dup_truth:
-            continue
-        # The score has to be lower than sdcic.matches_threshold.
-        if sdcic.get_bmh_scores(img1_id, img2_id, img1_overlap_tag)[0] > sdcic.matches_threshold:
-            continue
-        # Keep the one that has the lowest score.
-        idx1, idx2 = tpl[img1_overlap_tag][0]
-        img_overlap_pairs.append((img1_id, img2_id, idx1, idx2, 0))
-        if len(img_overlap_pairs) > 2 * n_dup_tile_pairs:
-            break
-
-    print(f"Number of non-dup/dup tiles: {len(img_overlap_pairs) - n_dup_tile_pairs:>8}/{n_dup_tile_pairs}")
-
     return img_overlap_pairs
 
 
