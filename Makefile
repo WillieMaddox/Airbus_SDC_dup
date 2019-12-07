@@ -39,7 +39,7 @@ data: requirements
 
 ## Make Intermediate Features
 features:
-	$(PYTHON_INTERPRETER) sdcdup/features/build_features.py bmh cmh enp pix px0 shp
+	$(PYTHON_INTERPRETER) sdcdup/features/build_features.py bmh96 cmh enp pix px0 shp
 
 ## Delete all compiled Python files
 clean:

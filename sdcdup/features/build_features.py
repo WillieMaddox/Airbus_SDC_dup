@@ -7,7 +7,7 @@ from dotenv import find_dotenv, load_dotenv
 
 from sdcdup.features import SDCImageContainer
 
-allowed_score_types = ('bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
+allowed_score_types = ('bmh96', 'cmh', 'enp', 'pix', 'px0', 'shp')
 
 
 @click.command()

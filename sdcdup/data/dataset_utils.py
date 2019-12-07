@@ -93,8 +93,8 @@ def create_dataset_from_tiles(sdcic):
                 if tile1_issolid and tile2_issolid:
                     continue
 
-                bmh1 = sdcic.img_metrics['bmh'][img_id][idx1]
-                bmh2 = sdcic.img_metrics['bmh'][img_id][idx2]
+                bmh1 = sdcic.img_metrics['bmh96'][img_id][idx1]
+                bmh2 = sdcic.img_metrics['bmh96'][img_id][idx2]
                 score = get_hamming_distance(bmh1, bmh2, normalize=True, as_score=True)
 
                 if score == 1:
