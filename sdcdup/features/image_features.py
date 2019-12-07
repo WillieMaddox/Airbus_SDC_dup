@@ -13,22 +13,30 @@ import numpy as np
 import pandas as pd
 import cv2
 from cv2 import img_hash
+import torch
+from torch.utils import data
 
 from sdcdup.utils import idx2ijpair
 from sdcdup.utils import get_project_root
 from sdcdup.utils import rle_to_full_mask
 from sdcdup.utils import get_hamming_distance
+from sdcdup.utils import generate_tag_pair_lookup
 from sdcdup.utils import generate_pair_tag_lookup
 from sdcdup.utils import overlap_tag_pairs
 from sdcdup.utils import overlap_tag_maps
 from sdcdup.utils import relative_diff
 from sdcdup.utils import fuzzy_diff
+from sdcdup.data import EvalDataset as Dataset
+from sdcdup.data import WrappedDataLoader
+from sdcdup.models import load_checkpoint
 
 project_root = get_project_root()
+models_dir = os.path.join(project_root, 'models')
 raw_data_dir = os.path.join(project_root, os.getenv('RAW_DATA_DIR'))
 interim_data_dir = os.path.join(project_root, os.getenv('INTERIM_DATA_DIR'))
 processed_data_dir = os.path.join(project_root, os.getenv('PROCESSED_DATA_DIR'))
 
+tag_pair_lookup = generate_tag_pair_lookup()
 pair_tag_lookup = generate_pair_tag_lookup()
 
 
@@ -269,6 +277,13 @@ class SDCImageContainer:
                 'func': self.gen_shp_scores,
                 'image_metric': 'shp',
                 'filename': 'overlap_shp.pkl'},
+            'dnn': {
+                'dtype': np.float,
+                'func': self.gen_dnn_scores,
+                'image_metric': None,
+                'model_basename': 'dup_model2',
+                'model_id': '2019_1129_1702',
+                'filename': 'overlap_dnn_2019_1129_1702.pkl'},
         }
         self.matches_metric = matches_params[0]  # 'bmh'
         self.matches_threshold = matches_params[1]  # 0.9 ~= 1 - ((5 + 20) / 256)
@@ -694,6 +709,8 @@ class SDCImageContainer:
                 n_matches = len(overlap_matches)
                 for overlap_match in tqdm(executor.map(func, *zip(*overlap_matches)), total=n_matches):
                     overlap_scores_list.append(overlap_match)
+        elif score_type in ('dnn',):
+            overlap_scores_list = func(overlap_matches)
         else:
             for overlap_match in tqdm(sorted(overlap_matches)):
                 overlap_scores_list.append(func(*overlap_match))
@@ -758,11 +775,54 @@ class SDCImageContainer:
 
         return overlap_image_maps
 
+    def gen_dnn_scores(self, overlap_matches):
+
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        def preprocess(x):
+            return x.view(-1, 6, 256, 256).to(device)
+
+        TilePairs = namedtuple('TilePairs', 'img1_id img2_id img1_overlap_tag overlap_idx idx1 idx2')
+
+        tile_pairs = []
+        for img1_id, img2_id, img1_overlap_tag in tqdm(overlap_matches):
+            for overlap_idx, (idx1, idx2) in enumerate(tag_pair_lookup[img1_overlap_tag]):
+                tile_pairs.append(TilePairs(img1_id, img2_id, img1_overlap_tag, overlap_idx, idx1, idx2))
+
+        test_ds = Dataset(tile_pairs)
+        test_dl = data.DataLoader(test_ds, batch_size=256, num_workers=22)
+        test_dl = WrappedDataLoader(test_dl, preprocess)
+
+        dnn_model_id = self.overlap_scores_config['dnn'].get('model_id')
+        dnn_model_basename = self.overlap_scores_config['dnn'].get('model_basename')
+        dnn_model_file = os.path.join(models_dir, f"{dnn_model_basename}.{dnn_model_id}.best.pth")
+
+        model = load_checkpoint(dnn_model_file, dnn_model_basename)
+        model.to(device)
+
+        model.eval()
+        with torch.no_grad():
+            yprobs0 = [model(xb) for xb in tqdm(test_dl)]
+            yprobs = np.vstack([l.cpu() for l in yprobs0]).reshape(-1)
+
+        overlap_dnn_tile_scores = {}
+        for tp, yprob in tqdm(zip(tile_pairs, yprobs)):
+            if (tp.img1_id, tp.img2_id, tp.img1_overlap_tag) not in overlap_dnn_tile_scores:
+                n_overlapping_tiles = len(tag_pair_lookup[tp.img1_overlap_tag])
+                overlap_dnn_tile_scores[(tp.img1_id, tp.img2_id, tp.img1_overlap_tag)] = np.zeros(n_overlapping_tiles)
+            overlap_dnn_tile_scores[(tp.img1_id, tp.img2_id, tp.img1_overlap_tag)][tp.overlap_idx] = yprob
+
+        overlap_scores_list = []
+        for (img1_id, img2_id, img1_overlap_tag), scores in tqdm(overlap_dnn_tile_scores.items()):
+            overlap_scores_list.append((img1_id, img2_id, img1_overlap_tag, *scores))
+
+        return overlap_scores_list
+
 
 if __name__ == '__main__':
 
     t0 = time.time()
-    score_types = ('md5', 'bmh', 'cmh', 'enp', 'pix', 'px0', 'shp')
+    score_types = ('md5', 'bmh', 'cmh', 'enp', 'avg', 'hst', 'pix', 'px0', 'shp', 'dnn')
     sdcic = SDCImageContainer(matches_params=('bmh', 0.99))
     overlap_image_maps = sdcic.load_image_overlap_properties(score_types=score_types)
     print(f'Done in {time.time() - t0}')
