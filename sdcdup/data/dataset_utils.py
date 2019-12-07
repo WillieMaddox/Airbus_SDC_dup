@@ -222,7 +222,7 @@ class TrainDataset(data.Dataset):
         # The first tile will always come from either a slice of the image or from the saved slice.
         first_from_large = np.random.random() > 0.5
         second_from_large = np.random.random() > 0.5
-        second_augment_hls = np.random.random() > 0.25
+        second_augment_hls = 0 if self.valid else np.random.random() > 0.25
         flip_stacking_order = np.random.random() > 0.5
 
         hls_idx = np.random.choice(3)
@@ -278,8 +278,15 @@ class TrainDataset(data.Dataset):
                     tile1 = read1(img1_id, idx1)
                     tile2 = read2(img2_id, idx2)
         else:  # img1_id != img2_id
-            tile1 = read1(img1_id, idx1)
-            tile2 = read2(img2_id, idx2)
+            if is_dup:
+                tile1 = read1(img1_id, idx1)
+                if aug_hls:
+                    tile2 = self.color_shift(tile1, chan, gain)
+                else:
+                    tile2 = read2(img2_id, idx2)
+            else:
+                tile1 = read1(img1_id, idx1)
+                tile2 = read2(img2_id, idx2)
 
         # if is_dup == 0 and sdcic.img_metrics['md5'][img1_id][idx1] == sdcic.img_metrics['md5'][img2_id][idx2]:
         #     print(f'same_image, is_dup: {same_image*1}, {is_dup}')
