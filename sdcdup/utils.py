@@ -4,6 +4,7 @@ from datetime import datetime
 from functools import lru_cache
 
 import numpy as np
+import pandas as pd
 import networkx as nx
 import cv2
 
@@ -303,6 +304,32 @@ def fuzzy_compare(tile1, tile2):
     ab = fuzzy_join(tile1, tile2)
     n = 255 * np.prod(ab.shape)
     return np.sum(255 - ab) / n
+
+
+def get_overlap_matches(matches_files):
+    matches_set = set()
+    for matches_file in matches_files:
+        df = pd.read_csv(os.path.join(interim_data_dir, matches_file), dtype=str)
+        matches = set([tuple(match) for match in df.to_dict('split')['data']])
+        n_new = len(matches.difference(matches_set))
+        matches_set |= matches
+        print(f'{len(matches_set):>8} {n_new:>8} {len(matches):>8} {matches_file}')
+    return sorted(matches_set)
+
+
+def merge_overlap_matches(matches_files, prefix='matches_dnn'):
+    matches = get_overlap_matches(matches_files)
+    df = pd.DataFrame(matches)
+    new_matches_filename = f'{prefix}_{len(matches)}.csv'
+    new_matches_file = os.path.join(interim_data_dir, new_matches_filename)
+    if os.path.exists(new_matches_file):
+        print(f'Error: {new_matches_filename} already exists... Exiting.')
+        return
+    df.to_csv(new_matches_file, index=False)
+    print(f'{new_matches_filename} Saved.')
+    if os.path.exists(new_matches_file):
+        for matches_file in matches_files:
+            print(f'Info: {matches_file} still exists.  Be sure to delete it.')
 
 
 def read_duplicate_truth(filename):
