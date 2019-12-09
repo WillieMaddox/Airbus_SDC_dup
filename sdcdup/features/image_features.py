@@ -670,10 +670,10 @@ class SDCImageContainer:
         print('overlap scores')
 
         Overlap_Scores = namedtuple('overlap_scores', score_types)
-        overlap_image_maps = defaultdict(defaultdict)
+        overlap_image_maps = {}
         for img1_id, img2_id, img1_overlap_tag in tqdm(sorted(self.matches)):
             scores_list = [overlap_scores[s][(img1_id, img2_id, img1_overlap_tag)] for s in score_types]
-            overlap_image_maps[(img1_id, img2_id)][img1_overlap_tag] = Overlap_Scores(*scores_list)
+            overlap_image_maps[(img1_id, img2_id, img1_overlap_tag)] = Overlap_Scores(*scores_list)
 
         return overlap_image_maps
 

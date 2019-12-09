@@ -31,6 +31,7 @@
   - [x] Implement an efficient way to lower (or raise) the overlap matches threshold.
   - [x] Implement efficient way to remove truth from auto when they are added manually.
   - [ ] Skip image pairs that have already been verified as duplicates.
+  - [ ] Find out which remaining tile pairs have masks but aren't in dup_truth.
   - [ ] Provide examples of false positives and false negatives for each of the following:
     - [ ] image hashes
     - [ ] image entropy
