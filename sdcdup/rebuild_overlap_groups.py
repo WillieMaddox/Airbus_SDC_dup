@@ -30,10 +30,17 @@ class SDCImage:
     def __init__(self, img_id):
         # This class assumes the image is square and can be divided perfectly by the tile_size.
         self._id = img_id
-        self.overlaps = {overlap_tag: tuple() for overlap_tag in list(overlap_tag_maps)}
+        self.overlaps = {overlap_tag: None for overlap_tag in list(overlap_tag_maps)}
 
     def add_overlap(self, img2_id, img12_overlap_tag):
-        self.overlaps[img12_overlap_tag] = tuple((img2_id,))
+        if self.overlaps[img12_overlap_tag] is not None:
+            if self.overlaps[img12_overlap_tag] < img2_id:
+                # print(self.overlaps[img12_overlap_tag], img2_id)
+                return
+            if self.overlaps[img12_overlap_tag] > img2_id:
+                # print(img2_id, self.overlaps[img12_overlap_tag])
+                return
+        self.overlaps[img12_overlap_tag] = img2_id
 
     @property
     def img_id(self):
@@ -55,46 +62,49 @@ def check_overlap(img1_id, img2_id, img12_overlap_tag, overlap_groups, overlap_i
     img13_overlap_tags = img32_overlap_tags[::-1]
     missing_third_party_matches = set()
     for img13_overlap_tag, img32_overlap_tag in zip(img13_overlap_tags, img32_overlap_tags):
-        for img3_id in overlap_groups[img1_id].overlaps[img13_overlap_tag]:
-            if img3_id == img2_id:
+        img3_id = overlap_groups[img1_id].overlaps[img13_overlap_tag]
+        if img3_id is None:
+            continue
+
+        if img3_id == img2_id:
+            continue
+
+        img23_overlap_tag = overlap_tag_pairs[img32_overlap_tag]
+
+        if img3_id < img2_id:
+            if overlap_groups[img3_id].overlaps[img32_overlap_tag]:
+                if overlap_groups[img3_id].overlaps[img32_overlap_tag] != img2_id:
+                    return False, missing_third_party_matches
+
+            if img3_id in non_dups:
+                if img32_overlap_tag in non_dups[img3_id]:
+                    if img2_id in non_dups[img3_id][img32_overlap_tag]:
+                        return False, missing_third_party_matches
+            try:
+                scores = overlap_image_maps[(img3_id, img2_id, img32_overlap_tag)]
+            except KeyError:
+                missing_third_party_matches.add((img3_id, img2_id, img32_overlap_tag))
                 continue
 
-            img23_overlap_tag = overlap_tag_pairs[img32_overlap_tag]
-
-            if img3_id < img2_id:
-                if len(overlap_groups[img3_id].overlaps[img32_overlap_tag]) != 0:
-                    if overlap_groups[img3_id].overlaps[img32_overlap_tag][0] != img2_id:
-                        return False, missing_third_party_matches
-
-                if img3_id in non_dups:
-                    if img32_overlap_tag in non_dups[img3_id]:
-                        if img2_id in non_dups[img3_id][img32_overlap_tag]:
-                            return False, missing_third_party_matches
-                try:
-                    scores = overlap_image_maps[(img3_id, img2_id, img32_overlap_tag)]
-                except KeyError:
-                    missing_third_party_matches.add((img3_id, img2_id, img32_overlap_tag))
-                    continue
-
-                if np.min(scores.dnn) < 0.5:
+            if np.min(scores.dnn) < 0.8:
+                return False, missing_third_party_matches
+        else:
+            if overlap_groups[img2_id].overlaps[img23_overlap_tag]:
+                if overlap_groups[img2_id].overlaps[img23_overlap_tag] != img3_id:
                     return False, missing_third_party_matches
-            else:
-                if len(overlap_groups[img2_id].overlaps[img23_overlap_tag]) != 0:
-                    if overlap_groups[img2_id].overlaps[img23_overlap_tag][0] != img3_id:
+
+            if img2_id in non_dups:
+                if img23_overlap_tag in non_dups[img2_id]:
+                    if img3_id in non_dups[img2_id][img23_overlap_tag]:
                         return False, missing_third_party_matches
+            try:
+                scores = overlap_image_maps[(img2_id, img3_id, img23_overlap_tag)]
+            except KeyError:
+                missing_third_party_matches.add((img2_id, img3_id, img23_overlap_tag))
+                continue
 
-                if img2_id in non_dups:
-                    if img23_overlap_tag in non_dups[img2_id]:
-                        if img3_id in non_dups[img2_id][img23_overlap_tag]:
-                            return False, missing_third_party_matches
-                try:
-                    scores = overlap_image_maps[(img2_id, img3_id, img23_overlap_tag)]
-                except KeyError:
-                    missing_third_party_matches.add((img2_id, img3_id, img23_overlap_tag))
-                    continue
-
-                if np.min(scores.dnn) < 0.5:
-                    return False, missing_third_party_matches
+            if np.min(scores.dnn) < 0.8:
+                return False, missing_third_party_matches
 
     return True, missing_third_party_matches
 
@@ -103,10 +113,12 @@ def add_overlap(img1_id, img2_id, img12_overlap_tag, overlap_groups):
     img32_overlap_tags = third_party_overlaps[img12_overlap_tag]
     img13_overlap_tags = img32_overlap_tags[::-1]
     for img13_overlap_tag, img32_overlap_tag in zip(img13_overlap_tags, img32_overlap_tags):
-        for img3_id in overlap_groups[img1_id].overlaps[img13_overlap_tag]:
-            if img3_id == img2_id:
-                continue
-            overlap_groups[img3_id].add_overlap(img2_id, img32_overlap_tag)
+        img3_id = overlap_groups[img1_id].overlaps[img13_overlap_tag]
+        if img3_id is None:
+            continue
+        if img3_id == img2_id:
+            continue
+        overlap_groups[img3_id].add_overlap(img2_id, img32_overlap_tag)
     overlap_groups[img1_id].add_overlap(img2_id, img12_overlap_tag)
 
 
@@ -173,11 +185,11 @@ if __name__ == '__main__':
             continue
 
         if img1_id in overlap_groups:
-            if len(overlap_groups[img1_id].overlaps[img12_overlap_tag]) != 0:
+            if overlap_groups[img1_id].overlaps[img12_overlap_tag]:
                 continue
 
         if img2_id in overlap_groups:
-            if len(overlap_groups[img2_id].overlaps[img21_overlap_tag]) != 0:
+            if overlap_groups[img2_id].overlaps[img21_overlap_tag]:
                 continue
 
         if img1_id not in overlap_groups:
