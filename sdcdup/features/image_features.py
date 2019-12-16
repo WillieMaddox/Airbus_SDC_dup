@@ -196,10 +196,10 @@ class SDCImageContainer:
                 'shape': (self.n_tiles, 3),
                 'func': self.get_entropy},
             'hst': {
-                'len': 256,
+                'len': 12,
                 'dtype': np.uint16,
                 'file': os.path.join(interim_data_dir, 'image_hst.pkl'),
-                'shape': (self.n_tiles, 256),
+                'shape': (self.n_tiles, 12),
                 'func': self.get_histstats},
             'avg': {
                 'len': 768,
@@ -312,16 +312,16 @@ class SDCImageContainer:
 
     def get_histstats(self, tile):
         hist_rgb = cv2.calcHist([tile], [0, 1, 2], None, [256] * 3, [0, 256, 0, 256, 0, 256]).astype(np.int)
-        r, g, b = np.unravel_index(np.argmax(hist_rgb), hist_rgb.shape)
+        rgb = np.unravel_index(np.argmax(hist_rgb), hist_rgb.shape)
         old_neighbor_total = 0
-        neighbor_counts = np.zeros((256,), dtype=np.uint16)
-        for k in range(256):
-            new_neighbor_total = np.sum(get_subhist3d(k, hist_rgb, r, g, b))
+        neighbor_counts = np.zeros((9,), dtype=np.uint16)
+        for k in range(9):
+            new_neighbor_total = np.sum(get_subhist3d(2**k-1, hist_rgb, *rgb))
             neighbor_counts[k] = new_neighbor_total - old_neighbor_total
             if new_neighbor_total == self.max_num_tile_pixels:
                 break
             old_neighbor_total = new_neighbor_total
-        return neighbor_counts
+        return np.hstack([rgb, neighbor_counts])
 
     def get_avgpool(self, tile):
         M, N, C = tile.shape
