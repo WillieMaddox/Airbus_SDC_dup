@@ -7,11 +7,9 @@
 * Organization and Refactoring
   - [ ] Move all plotting functions to visualize.py
   - [x] ~~Move create_label_metrics into create_image_metrics?~~ Keep separate.
-  - [ ] Use defaultdict instead of checking for "not in"
   - [x] Don't use multiple folders for jupyter notebooks.  Just makes it hard to find.
   - [x] ~~Create a new SDCTile class that represents a single tile from SDCImage.~~ Cancelled. Too slow.
 * Performance
-  - [ ] Profile PyTorch prediction pipeline in PyCharm.
   - [x] Parallelize the creation of image_metrics.
   - [x] Parallelize the creation of overlap_scores.
 * Write unit tests
@@ -30,7 +28,7 @@
 * Features
   - [x] Implement an efficient way to lower (or raise) the overlap matches threshold.
   - [x] Implement efficient way to remove truth from auto when they are added manually.
-  - [ ] Skip image pairs that have already been verified as duplicates.
+  - [x] Skip image pairs that have already been verified as duplicates.
   - [ ] Find out which remaining tile pairs have masks but aren't in dup_truth.
   - [ ] Provide examples of false positives and false negatives for each of the following:
     - [ ] image hashes
@@ -41,4 +39,4 @@
   - [ ] Use decision trees to show performance of DupNet over other metrics. (not sure how)
 * Dup Tool
   - [ ] Upgrade the dup_tool to use Bokeh or Plotly for interactions and rendering.
-  - [ ] Handle StopIteration exception.
+  - [ ] Handle StopIteration exception on last record read.
