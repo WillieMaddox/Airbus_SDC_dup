@@ -306,8 +306,9 @@ def fuzzy_compare(tile1, tile2):
     return np.sum(255 - ab) / n
 
 
-def get_overlap_matches(matches_files):
-    matches_set = set()
+def get_overlap_matches(matches_files, matches_set=None):
+    if matches_set is None:
+        matches_set = set()
     for matches_file in matches_files:
         df = pd.read_csv(os.path.join(interim_data_dir, matches_file), dtype=str)
         matches = set([tuple(match) for match in df.to_dict('split')['data']])
