@@ -360,7 +360,7 @@ class SDCImageContainer:
         for metric_id in self.new_metric_ids:
             metric_config = self.img_metrics_config[metric_id]
             img_metric[metric_id] = self.generate_image_metric(img, metric_config)
-        return img_metric
+        return img_id, img_metric
 
     def load_metrics(self, filename):
         df = pd.read_pickle(filename)
@@ -392,11 +392,11 @@ class SDCImageContainer:
 
     def create_image_metrics(self):
 
-        img_ids = os.listdir(self.train_image_dir)
         img_metrics = {m_id: {} for m_id in self.new_metric_ids}
+        img_ids = os.listdir(self.train_image_dir)
+        n_records = len(img_ids)
         with ThreadPoolExecutor() as executor:
-            n_records = len(img_ids)
-            for img_id, img_metric in tqdm(zip(img_ids, executor.map(self.process_image, img_ids)), total=n_records):
+            for img_id, img_metric in tqdm(executor.map(self.process_image, img_ids), total=n_records):
                 for metric_id, metric_array in img_metric.items():
                     img_metrics[metric_id][img_id] = metric_array
 
