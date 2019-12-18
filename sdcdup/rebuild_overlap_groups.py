@@ -1,6 +1,7 @@
 
 import os
 import time
+import json
 from collections import Counter
 from collections import defaultdict
 
@@ -54,6 +55,23 @@ class SDCImage:
 
     def __repr__(self):
         return self._id
+
+
+class PrettyEncoder(json.JSONEncoder):
+    def iterencode(self, o, _one_shot=False):
+        list_lvl = 0
+        for s in super(PrettyEncoder, self).iterencode(o, _one_shot=_one_shot):
+            # print(repr(s))
+            if s.startswith('['):
+                list_lvl += 1
+            if 0 < list_lvl:
+                s = s.replace('\n', '').rstrip()  # remove newline
+                s = ''.join(s.split())  # remove whitespace
+                if s and s[0] == ',':
+                    s = self.item_separator.join(s.split(','))
+            if s.endswith(']'):
+                list_lvl -= 1
+            yield s
 
 
 def check_overlap(img1_id, img2_id, img12_overlap_tag, overlap_groups, overlap_image_maps, non_dups=None):
