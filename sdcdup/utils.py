@@ -547,6 +547,10 @@ def hls_shift(img, chan, val):
     return scaled_img
 
 
+def add_tuples(t1, t2):
+    return t1[0] + t2[0], t1[1] + t2[1]
+
+
 class ImgMod:
     """
     Reads a single image to be modified by hls.
