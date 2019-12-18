@@ -11,10 +11,12 @@ from tqdm import tqdm
 
 from sdcdup.utils import overlap_tag_maps
 from sdcdup.utils import overlap_tag_pairs
+from sdcdup.utils import overlap_offsets
 from sdcdup.utils import get_project_root
 from sdcdup.utils import generate_tag_pair_lookup
 from sdcdup.utils import generate_third_party_overlaps
 from sdcdup.utils import load_duplicate_truth
+from sdcdup.utils import add_tuples
 from sdcdup.features import SDCImageContainer
 
 
@@ -138,6 +140,62 @@ def add_overlap(img1_id, img2_id, img12_overlap_tag, overlap_groups):
             continue
         overlap_groups[img3_id].add_overlap(img2_id, img32_overlap_tag)
     overlap_groups[img1_id].add_overlap(img2_id, img12_overlap_tag)
+
+
+def get_puzzle_solution(image_hashes0, overlap_groups):
+    image_ids_pool = set(image_hashes0)
+    image_ids_ready = set()
+
+    topo_dict = {}
+
+    img1_id = image_ids_pool.pop()
+    topo_dict[img1_id] = (0, 0)
+    image_ids_ready.add(img1_id)
+
+    while True:
+
+        img1_id = image_ids_ready.pop()
+        img1_pos = topo_dict[img1_id]
+
+        for overlap_tag, img2_id in overlap_groups[img1_id].overlaps.items():
+
+            if img2_id is None:
+                continue
+
+            if overlap_tag == '08':
+                continue
+
+            img2_pos = add_tuples(img1_pos, overlap_offsets[overlap_tag])
+
+            if img2_id in topo_dict:
+                if topo_dict[img2_id] != img2_pos:
+                    # NOTE: This line should never print.
+                    print(f'Collision - {topo_dict[img2_id]} {overlap_offsets[overlap_tag]} ({img2_pos})')
+                continue
+
+            topo_dict[img2_id] = img2_pos
+
+            if img2_id in image_ids_pool:
+                image_ids_ready.add(img2_id)
+                image_ids_pool.remove(img2_id)
+
+        if len(image_ids_ready) == 0:
+            break
+
+    mins = [9999, 9999]
+    for img_id, pos in topo_dict.items():
+        mins[0] = min(mins[0], pos[0])
+        mins[1] = min(mins[1], pos[1])
+
+    for img_id, pos in topo_dict.items():
+        topo_dict[img_id] = (pos[0] - mins[0], pos[1] - mins[1])
+
+    maxs = [-1, -1]
+    for img_id, pos in topo_dict.items():
+        maxs[0] = max(maxs[0], pos[0])
+        maxs[1] = max(maxs[1], pos[1])
+
+    return topo_dict, maxs
 
 
 if __name__ == '__main__':
