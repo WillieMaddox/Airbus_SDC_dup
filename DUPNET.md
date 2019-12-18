@@ -68,4 +68,13 @@ TODO: Describe in words
 
 ![](notebooks/figures/dupnet_v0.png)
 
+---
+### Performance
 
+We run the observed dup_truth through the trained model and compare the results to the dup_truth labels.
+We use a decision_tree classifier to get a sense of how well model performs.
+Using the prediction and loss from the model, we obtain outstanding results with only 12 out of the 38k being missclassified.
+None of the other image metrics or a combination of them even came close.
+See [decision_tree](notebooks/decision_tree.ipynb) for more details.
+
+![](notebooks/figures/decision_tree.png)

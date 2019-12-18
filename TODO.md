@@ -36,7 +36,7 @@
     - [ ] image histograms
     - [ ] grey-level co-occurrence matrix
     - [ ] ship overlap
-  - [ ] Use decision trees to show performance of DupNet over other metrics. (not sure how)
+  - [x] Use decision trees to show performance of DupNet over other metrics.
 * Dup Tool
   - [ ] Upgrade the dup_tool to use Bokeh or Plotly for interactions and rendering.
   - [ ] Handle StopIteration exception on last record read.
