@@ -1,6 +1,11 @@
 # Results
 
-The final task in this project is to join together all overlapping tiles into groups.  This [Notebook](notebooks/rebuild_overlap_groups.ipynb) contains the rebuilding code.  
+The final task in this project is to join together all overlapping tiles into groups.
+This [Notebook](notebooks/rebuild_overlap_groups.ipynb) contains the rebuilding code.
+
+The overlap_groups are saved to rebuild_overlap_group.json.
+For each group, the key is the name of the file I save the group image, and the values are themselves key value pairs that are the original tile filename (key) and offset from an origin common to all images in the group.
+The offsets need to be multiplied by 256 to make sure the images overlap correctly.
 
 Examples of some of the more interesting results are provided below.
 
