@@ -54,5 +54,4 @@ See also, [Harris geospatial](https://www.harrisgeospatial.com/docs/backgroundte
 
 <http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.455.8550&rep=rep1&type=pdf>
 
-
-
+<http://www.hackerfactor.com/blog/?/archives/432-Looks-Like-It.html>

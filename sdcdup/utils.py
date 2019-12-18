@@ -209,6 +209,15 @@ def rle_to_full_mask(rle_list, shape=(768, 768)):
 
 
 def pad_string(x, n):
+    """
+    Pad a numeric string with zeros such that the resulting string len is n.
+    Args:
+        x: numeric string, e.g. '6234'
+        n: length of final string length, e.g. 7
+
+    Returns:
+    a zero padded string, e.g. '0006234'
+    """
     padding = n - len(x)
     x_new = x if padding <= 0 else ''.join(['0' * padding, x])
     return x_new
