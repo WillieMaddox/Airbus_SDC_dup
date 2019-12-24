@@ -403,7 +403,7 @@ class SDCImageContainer:
         for m_id in self.new_metric_ids:
             self.dump_metrics(img_metrics[m_id], self.img_metrics_config[m_id]['file'])
 
-    def create_label_metrics(self, metric_ids=('shp',)):
+    def create_label_metrics(self, metric_ids):
         """
         Slightly different approach here since we are reading everything from a single rle csv file,
         rather than multiple image files.
@@ -609,12 +609,9 @@ class SDCImageContainer:
 
         return overlap_scores_list
 
-    def load_image_overlap_properties(self, matches_files, score_types='default'):
+    def load_image_overlap_properties(self, matches_files, score_types=None):
 
         if score_types is None:
-            score_types = []
-
-        if score_types == 'default':
             score_types = ['bmh96', 'cmh', 'enp', 'pix', 'px0']
 
         image_metrics = []
