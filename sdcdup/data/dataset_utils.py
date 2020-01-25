@@ -288,12 +288,6 @@ class TrainDataset(data.Dataset):
                 tile1 = read1(img1_id, idx1)
                 tile2 = read2(img2_id, idx2)
 
-        # if is_dup == 0 and sdcic.img_metrics['md5'][img1_id][idx1] == sdcic.img_metrics['md5'][img2_id][idx2]:
-        #     print(f'same_image, is_dup: {same_image*1}, {is_dup}')
-        #     print(f'{img1_id} {idx1} -> ({self.ij[idx1][0]},{self.ij[idx1][1]})')
-        #     print(f'{img2_id} {idx2} -> ({self.ij[idx2][0]},{self.ij[idx2][1]})')
-        #     is_dup = 1
-
         tile1 = cv2.cvtColor(tile1, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
         tile2 = cv2.cvtColor(tile2, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
 
