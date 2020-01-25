@@ -19,7 +19,6 @@ from sdcdup.utils import to_bgr
 from sdcdup.utils import idx_chan_map
 from sdcdup.utils import hls_shift
 from sdcdup.utils import load_duplicate_truth
-from sdcdup.utils import interim_data_dir
 from sdcdup.utils import train_image_dir
 from sdcdup.utils import train_tile_dir
 
